@@ -2,6 +2,8 @@
 
 ![Mutual demo: joining an event, painting availability, finding the best time, and switching themes](docs/demo.gif)
 
+Try it out at https://mutual.darkeden.org/
+
 A prettier, self-hosted take on When2Meet. Create an event, share a link, and everyone
 paints the times they are free (or only *if needed*). The group view shows a live
 heatmap and a ranked list of the best meeting times.
