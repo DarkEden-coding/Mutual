@@ -14,6 +14,16 @@ services:
       DATA_DIR: /data
       TRUST_PROXY: ${TRUST_PROXY:-cloudflare}
       COOKIE_SECURE: ${COOKIE_SECURE:-}
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 256
     restart: unless-stopped
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -22,6 +32,13 @@ services:
     command: tunnel run
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 128
     depends_on:
       app:
         condition: service_healthy

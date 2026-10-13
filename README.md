@@ -75,7 +75,8 @@ The app listens on `127.0.0.1:8787` on the host. It is not published to your LAN
 
 What Compose does for you:
 
-- Runs the app as a non-root user.
+- Runs the app as a non-root user with a read-only root filesystem, no Linux capabilities,
+  and CPU, memory, and process limits.
 - Stores the SQLite database and the generated session secret in the `mutual-data` named
   volume. No host directory or `chown` is needed.
 - Fixes `NODE_ENV=production`, `PORT=8787`, and `DATA_DIR=/data`, whatever `.env` says.
@@ -100,6 +101,17 @@ Use the tunnel's HTTPS hostname for normal access. Cookies are `Secure` by defau
 production. Compose sets `TRUST_PROXY=cloudflare`, so rate limits use the real client IP
 from `CF-Connecting-IP`. Set `TRUST_PROXY=none` if you reach the app directly, and only
 trust Cloudflare headers when requests really pass through Cloudflare.
+
+Every request that changes data must come from the app's own origin and use
+`Content-Type: application/json`. Pages on other sites, including sibling subdomains that
+share your cookies' site, are rejected with `403`. Password sign-ins are limited per
+participant (10 attempts, then 1 every 6 minutes) on top of the per-IP limits, and IPv6
+clients are limited per /64. Each IP can hold 20 live update connections, each event 300,
+and the server 2000. Rate-limit state is saved in the database on shutdown, so restarts do
+not reset it.
+
+In the Cloudflare dashboard, set **SSL/TLS → Edge Certificates → Minimum TLS Version** to
+**TLS 1.2**.
 
 Live updates depend on SSE responses not being cached or buffered. The server sends the
 right headers. In Cloudflare, do not cache `/api`. Optionally add a Cache Rule with
@@ -131,9 +143,12 @@ changes. Use SQLite's online backup API instead:
 mkdir -p backups
 chmod 700 backups
 docker compose exec -T app node -e 'const DB = require("better-sqlite3"); const db = new DB("/data/mutual.sqlite", { readonly: true }); db.backup("/tmp/mutual-backup.sqlite").then(() => db.close()).catch(error => { console.error(error); db.close(); process.exitCode = 1; });'
-docker compose cp app:/tmp/mutual-backup.sqlite ./backups/mutual.sqlite
+# /tmp is a tmpfs, which `docker compose cp` cannot read, so stream the files out instead.
+docker compose exec -T app cat /tmp/mutual-backup.sqlite > ./backups/mutual.sqlite
+docker compose exec -T app rm /tmp/mutual-backup.sqlite
 # If SESSION_SECRET is empty, also keep the generated secret:
-docker compose cp app:/data/secret ./backups/secret
+docker compose exec -T app cat /data/secret > ./backups/secret
+chmod 600 ./backups/*
 ```
 
 Keep `.env` safe too, especially if it sets `SESSION_SECRET`. Store dated copies off the

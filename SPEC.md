@@ -106,6 +106,18 @@ Base path `/api`. JSON in/out. Errors: `{ "error": { "code": string, "message": 
 with an appropriate 4xx/5xx status. Codes used: `invalid_input`, `not_found`, `slug_taken`,
 `wrong_password`, `unauthorized`, `forbidden`, `rate_limited`, `too_many_participants`.
 
+Request rules for every `/api` call that is not `GET`/`HEAD`/`OPTIONS`:
+- Bodies must be sent with `Content-Type: application/json` (`415 invalid_input` otherwise).
+- An `Origin` header, if present, must match the request host, and `Sec-Fetch-Site`, if
+  present, must be `same-origin` or `none` (`403 forbidden` otherwise).
+
+Rate limits (`429 rate_limited` with `Retry-After`), keyed by client IP (IPv6 by /64):
+- All `/api` requests: burst 240, refill 4/s.
+- `POST /api/events`, `/session`, `/admin`: burst 20, refill 1 per 6 s.
+- Password checks per participant: burst 10, refill 1 per 6 min, regardless of IP.
+- Live update streams: 20 open per IP, 300 per event, 2000 total.
+Limit state is persisted in SQLite on shutdown.
+
 ### Types
 
 ```ts

@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../src/app.js';
-import { sessionSecret } from '../src/security.js';
+import { clientKey, sessionSecret } from '../src/security.js';
 
 const input = { title: 'Meet up', description: 'Line one\nLine two', mode: 'dates', dates: ['2026-10-15', '2026-10-13'], startMinute: 540, endMinute: 600, slotMinutes: 30, timezone: 'America/Detroit' };
 let runtime: ReturnType<typeof createApp>;
@@ -193,12 +193,12 @@ describe('SSE and runtime protections', () => {
     }
     const oversized = await request('/events', 'POST', { ...input, description: 'x'.repeat(66_000) });
     expect(oversized.status).toBe(413); expect((await oversized.json()).error.code).toBe('invalid_input');
-    const malformed = await runtime.app.request('/api/events', { method: 'POST', body: '{' }); expect(malformed.status).toBe(400);
+    const malformed = await runtime.app.request('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' }); expect(malformed.status).toBe(400);
   });
   it('limits strict endpoints by Cloudflare IP and refills tokens', async () => {
     runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
     vi.useFakeTimers();
-    const attempt = (ip: string) => runtime.app.request('/api/events', { method: 'POST', headers: { 'CF-Connecting-IP': ip }, body: '{}' });
+    const attempt = (ip: string) => runtime.app.request('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip }, body: '{}' });
     for (let i = 0; i < 20; i++) expect((await attempt('1.2.3.4')).status).toBe(400);
     const limited = await attempt('1.2.3.4'); expect(limited.status).toBe(429); expect((await limited.json()).error.code).toBe('rate_limited');
     expect((await attempt('1.2.3.5')).status).toBe(400);
@@ -208,7 +208,7 @@ describe('SSE and runtime protections', () => {
     runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
     vi.useFakeTimers();
     const attempt = (ip: string) => runtime.app.request('/api/events', {
-      method: 'POST', headers: header === undefined ? {} : { 'CF-Connecting-IP': header }, body: '{}',
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(header === undefined ? {} : { 'CF-Connecting-IP': header }) }, body: '{}',
     }, { incoming: { socket: { remoteAddress: ip } } });
     for (let i = 0; i < 20; i++) expect((await attempt('192.0.2.1')).status).toBe(400);
     expect((await attempt('192.0.2.1')).status).toBe(429);
@@ -258,7 +258,7 @@ describe('SSE and runtime protections', () => {
       const { event, auth } = await create(); const signed = await session(event.id, 'Alice', 'secret');
       await request(`/events/${event.id}/availability`, 'PUT', { availability: '1212' }, signed.auth);
       expect(runtime.db.pragma('journal_mode', { simple: true })).toBe('wal');
-      expect(runtime.db.pragma('user_version', { simple: true })).toBe(1);
+      expect(runtime.db.pragma('user_version', { simple: true })).toBe(2);
       runtime.close(); runtime = createApp({ dataDir: dir, secret: 'persisted-key', rateLimit: false, ttlDays: 0 });
       const restored = await (await request(`/events/${event.id}`, 'GET', undefined, `${auth}; ${signed.auth}`)).json();
       expect(restored.viewer).toEqual({ isAdmin: true, participantId: signed.participant.id });
@@ -277,5 +277,74 @@ describe('SSE and runtime protections', () => {
       const first = sessionSecret(dir); expect(first).toHaveLength(43); expect(sessionSecret(dir)).toBe(first); expect(readFileSync(join(dir, 'secret'), 'utf8')).toBe(first);
       process.env.SESSION_SECRET = 'configured'; expect(sessionSecret(dir)).toBe('configured');
     } finally { if (previous === undefined) delete process.env.SESSION_SECRET; else process.env.SESSION_SECRET = previous; rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+describe('abuse protections', () => {
+  const json = { 'Content-Type': 'application/json' };
+  it('rejects non-JSON bodies and cross-origin or sibling-site writes', async () => {
+    const { event, auth } = await create();
+    const plain = await runtime.app.request(`/api/events/${event.id}/session`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{"name":"Mallory","password":"="}' });
+    expect(plain.status).toBe(415);
+    for (const headers of [{ Origin: 'https://evil.example' }, { Origin: 'null' }, { 'Sec-Fetch-Site': 'same-site' }, { 'Sec-Fetch-Site': 'cross-site' }]) {
+      const res = await runtime.app.request(`/api/events/${event.id}`, { method: 'PATCH', headers: { ...json, ...headers, Cookie: auth }, body: '{"title":"Pwned"}' });
+      expect(res.status).toBe(403);
+    }
+    const deleted = await runtime.app.request(`/api/events/${event.id}`, { method: 'DELETE', headers: { Origin: 'https://evil.example', Cookie: auth } });
+    expect(deleted.status).toBe(403);
+    const same = await runtime.app.request(`/api/events/${event.id}`, { method: 'PATCH', headers: { ...json, Origin: 'http://localhost', 'Sec-Fetch-Site': 'same-origin', Cookie: auth }, body: '{"title":"Renamed"}' });
+    expect(same.status).toBe(200);
+    expect((await runtime.app.request(`/api/events/${event.id}`, { headers: { Origin: 'https://evil.example' } })).status).toBe(200);
+  });
+  it('limits password guesses per participant across many IPs', async () => {
+    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
+    const { event } = await create(); await session(event.id, 'Alice', 'right');
+    const attempt = (i: number, password: string) => runtime.app.request(`/api/events/${event.id}/session`, { method: 'POST', headers: { ...json, 'CF-Connecting-IP': `198.51.100.${i}` }, body: JSON.stringify({ name: 'alice', password }) });
+    for (let i = 0; i < 9; i++) expect((await attempt(i, 'wrong')).status).toBe(401);
+    expect((await attempt(9, 'right')).status).toBe(200);
+    const limited = await attempt(10, 'right'); expect(limited.status).toBe(429); expect(limited.headers.get('retry-after')).toBe('360');
+    expect((await attempt(11, 'anything')).status).toBe(429);
+    expect((await runtime.app.request(`/api/events/${event.id}/session`, { method: 'POST', headers: { ...json, 'CF-Connecting-IP': '198.51.100.12' }, body: '{"name":"Bob"}' })).status).toBe(200);
+  });
+  it('groups IPv6 clients by /64 and normalizes IPv4-mapped addresses', () => {
+    expect(clientKey('2001:db8:1:2:aaaa::1')).toBe('2001:db8:1:2::/64');
+    expect(clientKey('2001:0db8:0001:0002:ffff:ffff:ffff:ffff')).toBe('2001:db8:1:2::/64');
+    expect(clientKey('2001:db8::5')).toBe('2001:db8:0:0::/64');
+    expect(clientKey('::1')).toBe('0:0:0:0::/64');
+    expect(clientKey('::ffff:192.0.2.7')).toBe('192.0.2.7');
+    expect(clientKey('192.0.2.7')).toBe('192.0.2.7');
+  });
+  it('rate limits a rotating IPv6 /64 as one client', async () => {
+    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
+    const attempt = (ip: string) => runtime.app.request('/api/events', { method: 'POST', headers: { ...json, 'CF-Connecting-IP': ip }, body: '{}' });
+    for (let i = 0; i < 20; i++) expect((await attempt(`2001:db8:1:2::${(i + 1).toString(16)}`)).status).toBe(400);
+    expect((await attempt('2001:db8:1:2:ffff::1')).status).toBe(429);
+    expect((await attempt('2001:db8:1:3::1')).status).toBe(400);
+  });
+  it('caps live update connections per IP, per event and in total', async () => {
+    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare', rateLimit: false, ttlDays: 0, streamLimits: { perIp: 2, perEvent: 3, total: 4 } });
+    const one = (await create()).event.id, two = (await create()).event.id;
+    const open = (id: string, ip: string) => runtime.app.request(`/api/events/${id}/stream`, { headers: { 'CF-Connecting-IP': ip } });
+    const a = await open(one, '192.0.2.1'); await open(one, '192.0.2.1');
+    const tooMany = await open(one, '192.0.2.1'); expect(tooMany.status).toBe(429); expect(tooMany.headers.get('retry-after')).toBe('30');
+    await open(one, '192.0.2.2'); expect((await open(one, '192.0.2.3')).status).toBe(429);
+    await open(two, '192.0.2.3'); expect((await open(two, '192.0.2.4')).status).toBe(429);
+    expect(runtime.subscriberCount()).toBe(4);
+    await a.body!.cancel(); expect(runtime.subscriberCount()).toBe(3);
+    expect((await open(one, '192.0.2.1')).status).toBe(200);
+  });
+  it('keeps rate limits across a restart', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mutual-limits-'));
+    try {
+      runtime.close(); runtime = createApp({ dataDir: dir, secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
+      const attempt = () => runtime.app.request('/api/events', { method: 'POST', headers: { ...json, 'CF-Connecting-IP': '203.0.113.9' }, body: '{}' });
+      for (let i = 0; i < 20; i++) await attempt();
+      expect((await attempt()).status).toBe(429);
+      runtime.close(); runtime = createApp({ dataDir: dir, secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
+      expect((await attempt()).status).toBe(429);
+    } finally {
+      runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', rateLimit: false, ttlDays: 0 });
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
