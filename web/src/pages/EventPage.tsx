@@ -11,6 +11,7 @@ import { Segmented } from '../components/Segmented';
 import { SignInPanel } from '../components/SignIn';
 import { Tabs } from '../components/Tabs';
 import { TimezoneSelect } from '../components/TimezoneSelect';
+import { Tooltip } from '../components/Tooltip';
 import { useToast } from '../components/Toast';
 import { useCopy } from '../hooks/useCopy';
 import { useEventData } from '../hooks/useEventData';
@@ -348,28 +349,36 @@ function EventView({ event, participants, viewer, data, created, onDismissCreate
             {event.description && <p className="m-event-desc">{event.description}</p>}
           </div>
           <div className="m-event-tools">
-            <button type="button" className="m-button" onClick={() => void copy(eventUrl)}>
-              <IconLink /> Copy link
-            </button>
-            {viewer.isAdmin && (
-              <button type="button" className="m-button" onClick={() => setEditOpen(true)}>
-                <IconPencil /> Edit event
+            <Tooltip content="Copy a link others can open to add their availability.">
+              <button type="button" className="m-button" onClick={() => void copy(eventUrl)}>
+                <IconLink /> Copy link
               </button>
+            </Tooltip>
+            {viewer.isAdmin && (
+              <Tooltip content="Admins only: change the title, dates, or times, or delete the event.">
+                <button type="button" className="m-button" onClick={() => setEditOpen(true)}>
+                  <IconPencil /> Edit event
+                </button>
+              </Tooltip>
             )}
           </div>
         </div>
         <div className="m-event-tz">
           <IconGlobe size={16} />
           <span id="tz-label">Showing times in</span>
-          <div style={{ minWidth: '13rem' }}>
-            <TimezoneSelect value={viewerTz} onChange={setViewerTz} label="Viewer timezone" compact />
-          </div>
+          <Tooltip content="Shows times in this timezone for you only. The event's own timezone stays the same.">
+            <div style={{ minWidth: '13rem' }}>
+              <TimezoneSelect value={viewerTz} onChange={setViewerTz} label="Viewer timezone" compact />
+            </div>
+          </Tooltip>
           {tzDiffers && (
             <>
               <span className="m-badge">Event timezone: {event.timezone}</span>
-              <button type="button" className="m-button is-ghost is-small" onClick={() => setViewerTz(browserTimeZone())}>
-                Reset
-              </button>
+              <Tooltip content="Switch back to your device's timezone.">
+                <button type="button" className="m-button is-ghost is-small" onClick={() => setViewerTz(browserTimeZone())}>
+                  Reset
+                </button>
+              </Tooltip>
             </>
           )}
         </div>
@@ -414,9 +423,11 @@ function EventView({ event, participants, viewer, data, created, onDismissCreate
                       <span>
                         Signed in as <strong>{me.name}</strong>
                       </span>
-                      <button type="button" className="m-button is-ghost is-small" onClick={() => void signOut()}>
-                        Not you?
-                      </button>
+                      <Tooltip content="Sign out of this name on this device and pick a different one.">
+                        <button type="button" className="m-button is-ghost is-small" onClick={() => void signOut()}>
+                          Not you?
+                        </button>
+                      </Tooltip>
                     </div>
                     <span className={`m-saved is-${saveState}`} role="status" aria-live="polite">
                       {saveState === 'saving' && 'Saving...'}
@@ -434,18 +445,28 @@ function EventView({ event, participants, viewer, data, created, onDismissCreate
                       value={brush}
                       onChange={setBrush}
                       options={[
-                        { value: '1', label: (<><span className="m-swatch-dot is-available" /> Available</>) },
-                        { value: '2', label: (<><span className="m-swatch-dot is-ifneeded" /> If needed</>) },
+                        {
+                          value: '1',
+                          label: (<><span className="m-swatch-dot is-available" /> Available</>),
+                          tip: 'Paint the times you can make. Drag across the grid to fill several at once.',
+                        },
+                        {
+                          value: '2',
+                          label: (<><span className="m-swatch-dot is-ifneeded" /> If needed</>),
+                          tip: 'Paint the times you could make only if needed. Others see these as maybe times.',
+                        },
                       ]}
                     />
-                    <button
-                      type="button"
-                      className="m-button is-ghost is-small"
-                      onClick={() => onMineChange('0'.repeat(total))}
-                      disabled={!mine.includes('1') && !mine.includes('2')}
-                    >
-                      Clear all
-                    </button>
+                    <Tooltip content="Remove all of your times for this event.">
+                      <button
+                        type="button"
+                        className="m-button is-ghost is-small"
+                        onClick={() => onMineChange('0'.repeat(total))}
+                        disabled={!mine.includes('1') && !mine.includes('2')}
+                      >
+                        Clear all
+                      </button>
+                    </Tooltip>
                   </div>
                   <BrushLegend />
                 </div>
@@ -468,9 +489,17 @@ function EventView({ event, participants, viewer, data, created, onDismissCreate
                 <h2 className="m-card-title" id="group-title">
                   Group availability
                 </h2>
-                <span className="m-badge">
-                  {data.live ? 'Live' : 'Offline'} · {participants.length} {participants.length === 1 ? 'response' : 'responses'}
-                </span>
+                <Tooltip
+                  content={
+                    data.live
+                      ? 'Live: new responses appear here automatically.'
+                      : 'Offline: updates may be delayed. Refresh the page to see the latest responses.'
+                  }
+                >
+                  <span className="m-badge">
+                    {data.live ? 'Live' : 'Offline'} · {participants.length} {participants.length === 1 ? 'response' : 'responses'}
+                  </span>
+                </Tooltip>
               </div>
             )}
             <div className="m-panel-controls">

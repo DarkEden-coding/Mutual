@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, parseDateKey, REFERENCE_DAY_FIX, toDateKey, weekdayIndex } from '../lib/dates';
 import { IconChevronLeft, IconChevronRight } from './Icons';
+import { Tooltip } from './Tooltip';
 
 interface Props {
   selected: string[];
@@ -121,21 +122,25 @@ export function Calendar({ selected, onChange, min, maxDates = 62, onLimit }: Pr
   return (
     <div className="m-calendar" role="group" aria-label="Choose dates">
       <div className="m-calendar-header">
-        <button
-          type="button"
-          className="m-button is-ghost is-icon is-small"
-          aria-label="Previous month"
-          onClick={() => shiftMonth(-1)}
-          disabled={!canGoPrev}
-        >
-          <IconChevronLeft />
-        </button>
+        <Tooltip content="Previous month">
+          <button
+            type="button"
+            className="m-button is-ghost is-icon is-small"
+            aria-label="Previous month"
+            onClick={() => shiftMonth(-1)}
+            disabled={!canGoPrev}
+          >
+            <IconChevronLeft />
+          </button>
+        </Tooltip>
         <div className="m-calendar-title" aria-live="polite">
           {monthFmt.format(new Date(Date.UTC(view.year, view.month - 1, 1)))}
         </div>
-        <button type="button" className="m-button is-ghost is-icon is-small" aria-label="Next month" onClick={() => shiftMonth(1)}>
-          <IconChevronRight />
-        </button>
+        <Tooltip content="Next month">
+          <button type="button" className="m-button is-ghost is-icon is-small" aria-label="Next month" onClick={() => shiftMonth(1)}>
+            <IconChevronRight />
+          </button>
+        </Tooltip>
       </div>
       <div className="m-calendar-weekdays" aria-hidden="true">
         {weekdayNames.map((n, i) => (

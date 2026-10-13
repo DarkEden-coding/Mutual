@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react';
+import { Tooltip } from './Tooltip';
 
 interface Option<T extends string | number> {
   value: T;
   label: ReactNode;
   ariaLabel?: string;
+  /** Hover / focus hint explaining what the option does. */
+  tip?: ReactNode;
 }
 
 interface Props<T extends string | number> {
@@ -33,18 +36,19 @@ export function Segmented<T extends string | number>({ value, options, onChange,
       }}
     >
       {options.map((o) => (
-        <button
-          key={String(o.value)}
-          type="button"
-          role="radio"
-          aria-checked={o.value === value}
-          aria-label={o.ariaLabel}
-          tabIndex={o.value === value ? 0 : -1}
-          className={`m-segmented-option${o.value === value ? ' is-active' : ''}`}
-          onClick={() => onChange(o.value)}
-        >
-          {o.label}
-        </button>
+        <Tooltip key={String(o.value)} content={o.tip}>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={o.value === value}
+            aria-label={o.ariaLabel}
+            tabIndex={o.value === value ? 0 : -1}
+            className={`m-segmented-option${o.value === value ? ' is-active' : ''}`}
+            onClick={() => onChange(o.value)}
+          >
+            {o.label}
+          </button>
+        </Tooltip>
       ))}
     </div>
   );

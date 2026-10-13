@@ -3,6 +3,7 @@ import type { BestBlock, SlotRoster } from '../lib/bestTimes';
 import { formatMinuteRange, type ViewGrid } from '../lib/slots';
 import type { ParticipantDTO } from '../api';
 import { IconLock } from './Icons';
+import { Tooltip } from './Tooltip';
 
 export function GroupLegend({ participants }: { participants: number }) {
   const n = participants;
@@ -120,26 +121,34 @@ export function BestTimes({
               const when = `${col.label} ${formatMinuteRange(b.startMinute, b.endMinute)}`;
               return (
                 <li key={b.id}>
-                  <button
-                    type="button"
-                    className={`m-best-item${activeId === b.id ? ' is-active' : ''}`}
-                    aria-pressed={activeId === b.id}
-                    aria-label={`${i + 1}. ${blockLabel(b, view)}, ${blockMeta(b)}`}
-                    title={`${blockLabel(b, view)} · ${blockMeta(b)}`}
-                    onClick={() => onSelect(activeId === b.id ? null : b.id)}
-                    onMouseEnter={() => onHover?.(b.id)}
-                    onMouseLeave={() => onHover?.(null)}
-                    onFocus={() => onHover?.(b.id)}
-                    onBlur={() => onHover?.(null)}
+                  <Tooltip
+                    content={
+                      <>
+                        <span className="m-tooltip-title">{blockLabel(b, view)}</span>
+                        <span className="m-tooltip-summary">{blockMeta(b)}. Click to pin it on the grid.</span>
+                      </>
+                    }
                   >
-                    <span className="m-best-rank" aria-hidden="true">
-                      {i + 1}
-                    </span>
-                    <span className="m-best-when">{when}</span>
-                    <span className="m-best-meta">
-                      {b.available + b.ifNeeded}/{b.total}
-                    </span>
-                  </button>
+                    <button
+                      type="button"
+                      className={`m-best-item${activeId === b.id ? ' is-active' : ''}`}
+                      aria-pressed={activeId === b.id}
+                      aria-label={`${i + 1}. ${blockLabel(b, view)}, ${blockMeta(b)}`}
+                      onClick={() => onSelect(activeId === b.id ? null : b.id)}
+                      onMouseEnter={() => onHover?.(b.id)}
+                      onMouseLeave={() => onHover?.(null)}
+                      onFocus={() => onHover?.(b.id)}
+                      onBlur={() => onHover?.(null)}
+                    >
+                      <span className="m-best-rank" aria-hidden="true">
+                        {i + 1}
+                      </span>
+                      <span className="m-best-when">{when}</span>
+                      <span className="m-best-meta">
+                        {b.available + b.ifNeeded}/{b.total}
+                      </span>
+                    </button>
+                  </Tooltip>
                 </li>
               );
             })}
@@ -198,20 +207,22 @@ export function ParticipantList({
     <ul className="m-participants">
       {participants.map((p) => (
         <li key={p.id}>
-          <button
-            type="button"
-            className={`m-participant${p.id === meId ? ' is-me' : ''}${activeId === p.id ? ' is-active' : ''}`}
-            aria-pressed={activeId === p.id}
-            onMouseEnter={() => onActive(p.id)}
-            onMouseLeave={() => onActive(null)}
-            onFocus={() => onActive(p.id)}
-            onBlur={() => onActive(null)}
-            onClick={() => onActive(activeId === p.id ? null : p.id)}
-          >
-            {p.name}
-            {p.hasPassword && <IconLock size={12} aria-label="Password protected" />}
-            {p.id === meId && <span className="m-badge is-accent">You</span>}
-          </button>
+          <Tooltip content="Hover to see their times on the grid. Click to keep them shown.">
+            <button
+              type="button"
+              className={`m-participant${p.id === meId ? ' is-me' : ''}${activeId === p.id ? ' is-active' : ''}`}
+              aria-pressed={activeId === p.id}
+              onMouseEnter={() => onActive(p.id)}
+              onMouseLeave={() => onActive(null)}
+              onFocus={() => onActive(p.id)}
+              onBlur={() => onActive(null)}
+              onClick={() => onActive(activeId === p.id ? null : p.id)}
+            >
+              {p.name}
+              {p.hasPassword && <IconLock size={12} aria-label="Password protected" />}
+              {p.id === meId && <span className="m-badge is-accent">You</span>}
+            </button>
+          </Tooltip>
         </li>
       ))}
     </ul>
