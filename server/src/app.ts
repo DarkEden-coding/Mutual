@@ -10,12 +10,13 @@ import { getConnInfo } from '@hono/node-server/conninfo';
 import type { z } from 'zod';
 import { openDatabase, statements, eventDTO, participantDTO, type EventRecord, type ParticipantRecord } from './database.js';
 import { createSchema, eventFields, patchSchema, sessionSchema, availabilitySchema, adminSchema, checkEvent, sortDays, totalSlots, remap, validSlug, type EventDTO } from './model.js';
-import { equal, tokenHash, hashPassword, verifyPassword, sessionSecret, signParticipant, readParticipant, RateLimiter } from './security.js';
+import { equal, tokenHash, hashPassword, verifyPassword, sessionSecret, signParticipant, readParticipant, clientKey, RateLimiter, type Bucket } from './security.js';
 
 class ApiError extends Error {
-  constructor(public status: 400 | 401 | 403 | 404 | 409 | 413 | 429, public code: string, message: string) { super(message); }
+  constructor(public status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429, public code: string, message: string, public retryAfter = 6) { super(message); }
 }
-interface Options { databasePath?: string; dataDir?: string; secret?: string; production?: boolean; webDist?: string; trustProxy?: string; rateLimit?: boolean; ttlDays?: number }
+interface StreamLimits { perIp: number; perEvent: number; total: number }
+interface Options { databasePath?: string; dataDir?: string; secret?: string; production?: boolean; webDist?: string; trustProxy?: string; rateLimit?: boolean; ttlDays?: number; streamLimits?: StreamLimits }
 export function createApp(options: Options = {}) {
   const production = options.production ?? process.env.NODE_ENV === 'production';
   const cookieSecureEnv = process.env.COOKIE_SECURE;
@@ -29,7 +30,10 @@ export function createApp(options: Options = {}) {
   const webDist = resolve(options.webDist ?? process.env.WEB_DIST ?? fileURLToPath(new URL('../../web/dist', import.meta.url)));
   const proxy = options.trustProxy ?? process.env.TRUST_PROXY;
   const limiter = new RateLimiter();
-  const app = new Hono();
+  limiter.restore(sql.rateLimits.all(Date.now() - 3_600_000) as Bucket[]);
+  const streamLimits = options.streamLimits ?? { perIp: 20, perEvent: 300, total: 2000 };
+  const streamsByIp = new Map<string, number>();
+  const app = new Hono<{ Variables: { ip: string } }>();
   const subscribers = new Map<string, Set<{ send: (event: string, data: unknown) => void; close: () => void }>>();
   function broadcast(id: string, event: string, data: unknown) {
     for (const subscriber of [...(subscribers.get(id) ?? [])]) {
@@ -56,6 +60,8 @@ export function createApp(options: Options = {}) {
     if (!isAdmin(c, row)) throw new ApiError(403, 'forbidden', 'Admin access required');
   };
   async function parse<T extends z.ZodType>(c: Context, schema: T): Promise<z.infer<T>> {
+    // Requiring JSON forces a CORS preflight, so HTML forms on other sites cannot submit these bodies.
+    if (!/^application\/json\s*(;|$)/i.test(c.req.header('Content-Type') ?? '')) throw new ApiError(415, 'invalid_input', 'Expected Content-Type: application/json');
     let body: unknown;
     try { body = await c.req.json(); } catch { throw new ApiError(400, 'invalid_input', 'Expected a JSON body'); }
     const result = schema.safeParse(body);
@@ -78,20 +84,28 @@ export function createApp(options: Options = {}) {
   });
   app.use('*', bodyLimit({ maxSize: 64 * 1024, onError: c => c.json({ error: { code: 'invalid_input', message: 'Request body exceeds 64 KiB' } }, 413) }));
   app.use('/api/*', async (c, next) => {
+    let socket = 'unknown';
+    try { socket = getConnInfo(c).remote.address ?? socket; } catch { /* app.request has no socket */ }
+    const ip = clientKey(proxy === 'cloudflare' ? c.req.header('CF-Connecting-IP') || socket : socket);
+    c.set('ip', ip);
     if (options.rateLimit !== false) {
-      let socket = 'unknown';
-      try { socket = getConnInfo(c).remote.address ?? socket; } catch { /* app.request has no socket */ }
-      const ip = proxy === 'cloudflare' ? c.req.header('CF-Connecting-IP') || socket : socket;
       if (!limiter.take(`all:${ip}`, 240, 4)) throw new ApiError(429, 'rate_limited', 'Too many requests');
       if (c.req.method === 'POST' && (c.req.path === '/api/events' || /\/(session|admin)$/.test(c.req.path))) {
         if (!limiter.take(`auth:${ip}`, 20, 1 / 6)) throw new ApiError(429, 'rate_limited', 'Too many create or sign-in attempts');
       }
     }
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
+      // SameSite=Lax still sends cookies from sibling subdomains, so reject anything not from this exact origin.
+      const site = c.req.header('Sec-Fetch-Site'), origin = c.req.header('Origin');
+      let sameOrigin = !origin;
+      if (origin) try { sameOrigin = new URL(origin).host === new URL(c.req.url).host; } catch { /* "null" or malformed */ }
+      if (!sameOrigin || (site && site !== 'same-origin' && site !== 'none')) throw new ApiError(403, 'forbidden', 'Cross-origin request rejected');
+    }
     await next();
   });
   app.onError((error, c) => {
     if (error instanceof ApiError) {
-      if (error.status === 429) c.header('Retry-After', '6');
+      if (error.status === 429) c.header('Retry-After', String(error.retryAfter));
       return c.json({ error: { code: error.code, message: error.message } }, error.status);
     }
     console.error(error);
@@ -155,19 +169,25 @@ export function createApp(options: Options = {}) {
     setCookie(c, `mutual_admin_${row.id}`, token, cookieOptions);
     return c.json({ viewer: { ...viewer(c, row), isAdmin: true } });
   });
+  // Per-participant limit, so guesses spread across many IPs still cannot brute-force one password.
+  const checkPassword = async (participant: ParticipantRecord, password: string) => {
+    if (!participant.password_hash) return;
+    if (options.rateLimit !== false && !limiter.take(`password:${participant.id}`, 10, 10 / 3600)) throw new ApiError(429, 'rate_limited', 'Too many password attempts for this name. Try again later.', 360);
+    if (!await verifyPassword(password, participant.password_salt!, participant.password_hash)) throw new ApiError(401, 'wrong_password', 'Incorrect password');
+  };
   app.post('/api/events/:id/session', async c => {
     const id = findEvent(c.req.param('id')).id;
     const { name, password } = await parse(c, sessionSchema);
     const key = name.toLowerCase();
     let participant = sql.name.get(id, key) as ParticipantRecord | undefined;
-    if (participant?.password_hash && !await verifyPassword(password, participant.password_salt!, participant.password_hash)) throw new ApiError(401, 'wrong_password', 'Incorrect password');
+    if (participant) await checkPassword(participant, password);
     if (!participant) {
       const hashed = password ? await hashPassword(password) : null;
       const row = findEvent(id);
       // A competing request may have created the name while scrypt was running.
       participant = sql.name.get(id, key) as ParticipantRecord | undefined;
       if (participant) {
-        if (participant.password_hash && !await verifyPassword(password, participant.password_salt!, participant.password_hash)) throw new ApiError(401, 'wrong_password', 'Incorrect password');
+        await checkPassword(participant, password);
       } else {
         if (participants(id).length >= 200) throw new ApiError(409, 'too_many_participants', 'This event already has 200 participants');
         const participantId = randomUUID(), now = new Date().toISOString();
@@ -201,7 +221,11 @@ export function createApp(options: Options = {}) {
     return c.json({ participant });
   });
   app.get('/api/events/:id/stream', c => {
-    const id = findEvent(c.req.param('id')).id;
+    const id = findEvent(c.req.param('id')).id, ip = c.get('ip');
+    const total = [...subscribers.values()].reduce((sum, set) => sum + set.size, 0);
+    if ((streamsByIp.get(ip) ?? 0) >= streamLimits.perIp || (subscribers.get(id)?.size ?? 0) >= streamLimits.perEvent || total >= streamLimits.total) {
+      throw new ApiError(429, 'rate_limited', 'Too many live update connections', 30);
+    }
     const encoder = new TextEncoder();
     let cleanup = () => {};
     const body = new ReadableStream<Uint8Array>({
@@ -216,9 +240,17 @@ export function createApp(options: Options = {}) {
         const subscriber = { send: (event: string, data: unknown) => enqueue(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`), close };
         const set = subscribers.get(id) ?? new Set();
         set.add(subscriber); subscribers.set(id, set);
+        streamsByIp.set(ip, (streamsByIp.get(ip) ?? 0) + 1);
+        let released = false;
         const heartbeat = setInterval(() => enqueue(': heartbeat\n\n'), 20_000);
         heartbeat.unref();
-        cleanup = () => { closed = true; clearInterval(heartbeat); set.delete(subscriber); if (!set.size) subscribers.delete(id); c.req.raw.signal.removeEventListener('abort', close); };
+        cleanup = () => {
+          closed = true; clearInterval(heartbeat); set.delete(subscriber); if (!set.size) subscribers.delete(id); c.req.raw.signal.removeEventListener('abort', close);
+          if (released) return;
+          released = true;
+          const count = (streamsByIp.get(ip) ?? 1) - 1;
+          if (count > 0) streamsByIp.set(ip, count); else streamsByIp.delete(ip);
+        };
         c.req.raw.signal.addEventListener('abort', close, { once: true });
         if (c.req.raw.signal.aborted) close(); else enqueue(': connected\n\n');
       },
@@ -253,8 +285,13 @@ export function createApp(options: Options = {}) {
   const housekeeping = ttlDays ? setInterval(housekeep, 86_400_000) : undefined;
   housekeeping?.unref();
   return { app, db, housekeep, subscriberCount: () => [...subscribers.values()].reduce((sum, set) => sum + set.size, 0), close: () => {
+    if (!db.open) return;
     if (housekeeping) clearInterval(housekeeping);
     for (const set of [...subscribers.values()]) for (const subscriber of [...set]) subscriber.close();
+    db.transaction((buckets: Bucket[]) => {
+      sql.clearRateLimits.run();
+      for (const { key, tokens, updated } of buckets) sql.insertRateLimit.run(key, tokens, updated);
+    })(limiter.snapshot());
     db.close();
   } };
 }

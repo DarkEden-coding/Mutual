@@ -11,7 +11,7 @@ export function openDatabase(filename: string) {
   db.pragma('busy_timeout = 5000');
   db.transaction(() => {
     const version = db.pragma('user_version', { simple: true }) as number;
-    if (version > 1) throw new Error('Database schema is newer than this server');
+    if (version > 2) throw new Error('Database schema is newer than this server');
     if (version < 1) {
       db.exec(`
         CREATE TABLE events (id TEXT PRIMARY KEY COLLATE NOCASE, dto TEXT NOT NULL, admin_hash TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -21,6 +21,13 @@ export function openDatabase(filename: string) {
         CREATE INDEX events_updated ON events(updated_at);
         CREATE INDEX participants_event ON participants(event_id);
         PRAGMA user_version = 1;
+      `);
+    }
+    if (version < 2) {
+      // Rate-limit buckets are saved on shutdown so a restart does not reset brute-force limits.
+      db.exec(`
+        CREATE TABLE rate_limits (key TEXT PRIMARY KEY, tokens REAL NOT NULL, updated INTEGER NOT NULL);
+        PRAGMA user_version = 2;
       `);
     }
   })();
@@ -38,5 +45,8 @@ export function statements(db: Database.Database) {
     name: db.prepare('SELECT * FROM participants WHERE event_id = ? AND name_key = ?'),
     insertParticipant: db.prepare('INSERT INTO participants (id, event_id, name, name_key, password_salt, password_hash, availability, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
     availability: db.prepare('UPDATE participants SET availability = ?, updated_at = ? WHERE id = ?'),
+    rateLimits: db.prepare('SELECT key, tokens, updated FROM rate_limits WHERE updated > ?'),
+    clearRateLimits: db.prepare('DELETE FROM rate_limits'),
+    insertRateLimit: db.prepare('INSERT INTO rate_limits (key, tokens, updated) VALUES (?, ?, ?)'),
   };
 }

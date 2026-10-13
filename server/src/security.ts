@@ -36,9 +36,28 @@ export function readParticipant(secret: string, eventId: string, cookie?: string
   const id = cookie.slice(0, index);
   return equal(cookie, signParticipant(secret, eventId, id)) ? id : null;
 }
+/** Rate-limit key for a client address. IPv6 clients usually control a whole /64, so they share one bucket. */
+export function clientKey(ip: string): string {
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
+  if (mapped) return mapped[1];
+  if (!ip.includes(':')) return ip;
+  const address = ip.split('%')[0].toLowerCase();
+  const [head, tail = ''] = address.split('::');
+  const left = head ? head.split(':') : [], right = tail ? tail.split(':') : [];
+  const groups = address.includes('::') ? [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right] : left;
+  return `${groups.slice(0, 4).map(group => group.replace(/^0+(?=.)/, '')).join(':')}::/64`;
+}
+export interface Bucket { key: string; tokens: number; updated: number }
 export class RateLimiter {
   private buckets = new Map<string, { tokens: number; updated: number }>();
   private calls = 0;
+  /** Buckets touched within the last hour, for persisting across restarts. */
+  snapshot(now = Date.now()): Bucket[] {
+    return [...this.buckets].filter(([, bucket]) => now - bucket.updated < 3_600_000).map(([key, bucket]) => ({ key, ...bucket }));
+  }
+  restore(buckets: Bucket[]) {
+    for (const { key, tokens, updated } of buckets) this.buckets.set(key, { tokens, updated });
+  }
   take(key: string, capacity: number, refillPerSecond: number) {
     const now = Date.now();
     if (++this.calls % 256 === 0) for (const [id, bucket] of this.buckets) if (now - bucket.updated > 3_600_000) this.buckets.delete(id);

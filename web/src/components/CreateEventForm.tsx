@@ -98,7 +98,7 @@ export function CreateEventForm() {
       </span>
     ) : slugStatus === 'available' ? (
       <span className="m-ok" aria-live="polite">
-        /e/{slug} is available
+        /e/{slug} is available. Common names are easy to guess, so ask people to set a password.
       </span>
     ) : slugStatus === 'taken' ? (
       <span className="m-error" role="alert">
@@ -111,7 +111,7 @@ export function CreateEventForm() {
     ) : slugStatus === 'error' ? (
       <span className="m-hint">Could not check right now. We will verify when you create the event.</span>
     ) : (
-      <span className="m-hint">Leave blank for a random link.</span>
+      <span className="m-hint">Leave blank for a random link that cannot be guessed.</span>
     );
 
   return (
