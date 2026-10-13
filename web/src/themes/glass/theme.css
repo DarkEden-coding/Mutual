@@ -1,0 +1,310 @@
+/*
+ * Theme: Glass (classic)
+ * Frosted translucent panels over a multi-blob mesh-gradient "aurora".
+ * Grid cells stay opaque; only cards, header and popovers blur the backdrop.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+[data-theme="glass"] {
+  --font-body: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: var(--font-body);
+  --weight-heading: 700;
+  --heading-tracking: -0.025em;
+  --body-tracking: -0.003em;
+
+  --radius-sm: 9px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --grid-radius: 16px;
+  --cell-gap: 1px;
+  --cell-radius: 0px;
+
+  --ring-width: 2px;
+  --ring-offset: 2px;
+
+  --backdrop: blur(22px) saturate(1.6);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ================= LIGHT ================= */
+[data-theme="glass"],
+[data-theme="glass"][data-mode="light"] {
+  --bg: #e6ecff;
+  --bg-image:
+    radial-gradient(48rem 38rem at 8% 6%, rgb(255 168 214 / 0.62), transparent 62%),
+    radial-gradient(52rem 40rem at 94% 10%, rgb(120 196 255 / 0.66), transparent 62%),
+    radial-gradient(46rem 40rem at 78% 96%, rgb(176 150 255 / 0.55), transparent 62%),
+    radial-gradient(44rem 36rem at 10% 92%, rgb(120 232 210 / 0.55), transparent 62%),
+    linear-gradient(160deg, #eef1ff 0%, #e4ecff 50%, #efe8ff 100%);
+
+  --surface: rgb(255 255 255 / 0.58);
+  --surface-2: rgb(255 255 255 / 0.5);
+  --elevated: rgb(255 255 255 / 0.82);
+  --overlay: rgb(30 36 80 / 0.34);
+
+  --text: #141b3c;
+  --text-muted: #424a74;
+  --text-faint: #646c94;
+
+  --border: rgb(255 255 255 / 0.75);
+  --border-strong: rgb(70 84 150 / 0.4);
+
+  --accent: #4457e8;
+  --accent-hover: #3446d0;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgb(88 104 240 / 0.15);
+
+  --danger: #c4264a;
+  --danger-soft: rgb(228 60 100 / 0.14);
+  --success: #107a5a;
+  --success-soft: rgb(30 190 140 / 0.17);
+  --warning: #9a5206;
+  --warning-soft: rgb(245 170 50 / 0.2);
+
+  --focus-ring: #3446d0;
+  --selection-bg: rgb(130 140 255 / 0.4);
+  --highlight: #3446d0;
+  --highlight-soft: rgb(88 104 240 / 0.16);
+
+  --shadow-sm: 0 1px 2px rgb(40 50 120 / 0.08), 0 2px 8px rgb(40 50 120 / 0.06);
+  --shadow-md: 0 8px 28px rgb(50 60 140 / 0.14), 0 1px 3px rgb(40 50 120 / 0.06);
+  --shadow-lg: 0 24px 64px rgb(50 60 140 / 0.26), 0 4px 14px rgb(40 50 120 / 0.1);
+
+  --cell-empty: #f1f4ff;
+  --cell-available: #2dba8c;
+  --cell-ifneeded: #f6bd4a;
+  --cell-ifneeded-pattern: repeating-linear-gradient(135deg, rgb(255 255 255 / 0.55) 0 3px, transparent 3px 7px);
+  --cell-disabled: #d9deef;
+  --cell-disabled-pattern: repeating-linear-gradient(135deg, rgb(40 50 110 / 0.12) 0 2px, transparent 2px 6px);
+  --cell-border: #cdd5f0;
+  --cell-border-strong: #8d99cf;
+  --cell-hover: #d4dcff;
+
+  --heat-empty: #f1f4ff;
+  --heat-full: #3a4fe0;
+  --grid-surface: #eef1ff;
+  --field-bg: rgb(255 255 255 / 0.72);
+}
+
+/* ================= DARK ================= */
+[data-theme="glass"][data-mode="dark"] {
+  --bg: #090d22;
+  --bg-image:
+    radial-gradient(50rem 40rem at 6% 8%, rgb(98 60 210 / 0.55), transparent 62%),
+    radial-gradient(50rem 40rem at 96% 14%, rgb(20 120 190 / 0.5), transparent 62%),
+    radial-gradient(46rem 40rem at 80% 98%, rgb(24 150 140 / 0.42), transparent 62%),
+    radial-gradient(44rem 38rem at 8% 94%, rgb(150 50 170 / 0.34), transparent 62%),
+    linear-gradient(160deg, #0b1030 0%, #0a1230 55%, #0c0f2a 100%);
+
+  --surface: rgb(28 36 78 / 0.52);
+  --surface-2: rgb(60 74 140 / 0.3);
+  --elevated: rgb(24 31 68 / 0.86);
+  --overlay: rgb(3 5 18 / 0.64);
+
+  --text: #eef1ff;
+  --text-muted: #b6bfe6;
+  --text-faint: #8d97c4;
+
+  --border: rgb(180 196 255 / 0.2);
+  --border-strong: rgb(160 178 255 / 0.4);
+
+  --accent: #8aa9ff;
+  --accent-hover: #a5bdff;
+  --accent-contrast: #0a0f2e;
+  --accent-soft: rgb(122 150 255 / 0.2);
+
+  --danger: #ff8aa0;
+  --danger-soft: rgb(255 90 120 / 0.18);
+  --success: #52e2ac;
+  --success-soft: rgb(50 210 160 / 0.18);
+  --warning: #f7c05a;
+  --warning-soft: rgb(245 180 70 / 0.18);
+
+  --focus-ring: #b4c7ff;
+  --selection-bg: rgb(110 130 255 / 0.5);
+  --highlight: #c4d2ff;
+  --highlight-soft: rgb(140 165 255 / 0.2);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 10 / 0.4), 0 2px 8px rgb(0 0 10 / 0.25);
+  --shadow-md: 0 10px 32px rgb(0 0 12 / 0.45), 0 1px 3px rgb(0 0 10 / 0.35);
+  --shadow-lg: 0 28px 72px rgb(0 0 12 / 0.65), 0 4px 14px rgb(0 0 10 / 0.4);
+
+  --cell-empty: #1b2250;
+  --cell-available: #25a87b;
+  --cell-ifneeded: #cc9528;
+  --cell-ifneeded-pattern: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.3) 0 3px, transparent 3px 7px);
+  --cell-disabled: #10152f;
+  --cell-disabled-pattern: repeating-linear-gradient(135deg, rgb(190 205 255 / 0.1) 0 2px, transparent 2px 6px);
+  --cell-border: #2c3668;
+  --cell-border-strong: #5a68a8;
+  --cell-hover: #2f3b82;
+
+  --heat-empty: #1b2250;
+  --heat-full: #4fe0b0;
+  --grid-surface: #161c46;
+  --field-bg: rgb(10 14 40 / 0.5);
+}
+
+/* ================= DECORATION ================= */
+
+/* Frosted cards: luminous inner edge + soft top sheen */
+[data-theme="glass"] .m-card,
+[data-theme="glass"] .m-banner,
+[data-theme="glass"] .m-state {
+  border-color: var(--border);
+  box-shadow:
+    var(--shadow-md),
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    inset 0 0 0 1px rgb(255 255 255 / 0.18);
+}
+[data-theme="glass"][data-mode="dark"] .m-card,
+[data-theme="glass"][data-mode="dark"] .m-banner,
+[data-theme="glass"][data-mode="dark"] .m-state {
+  box-shadow:
+    var(--shadow-md),
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 0 0 1px rgb(255 255 255 / 0.04);
+}
+
+[data-theme="glass"] .m-header {
+  background: rgb(255 255 255 / 0.5);
+  border-bottom-color: rgb(255 255 255 / 0.7);
+  box-shadow: 0 6px 30px rgb(50 60 140 / 0.1), inset 0 -1px 0 rgb(255 255 255 / 0.4);
+}
+[data-theme="glass"][data-mode="dark"] .m-header {
+  background: rgb(14 20 52 / 0.55);
+  border-bottom-color: rgb(180 196 255 / 0.16);
+  box-shadow: 0 6px 30px rgb(0 0 12 / 0.35);
+}
+
+[data-theme="glass"] .m-popover,
+[data-theme="glass"] .m-dialog,
+[data-theme="glass"] .m-tooltip,
+[data-theme="glass"] .m-combobox-list,
+[data-theme="glass"] .m-toast {
+  border-color: rgb(255 255 255 / 0.7);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 rgb(255 255 255 / 0.7);
+}
+[data-theme="glass"][data-mode="dark"] .m-popover,
+[data-theme="glass"][data-mode="dark"] .m-dialog,
+[data-theme="glass"][data-mode="dark"] .m-tooltip,
+[data-theme="glass"][data-mode="dark"] .m-combobox-list,
+[data-theme="glass"][data-mode="dark"] .m-toast {
+  border-color: rgb(180 196 255 / 0.24);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+[data-theme="glass"] .m-popover,
+[data-theme="glass"] .m-tooltip,
+[data-theme="glass"] .m-combobox-list,
+[data-theme="glass"] .m-toast {
+  -webkit-backdrop-filter: var(--backdrop);
+  backdrop-filter: var(--backdrop);
+}
+
+/* Inputs: slightly more opaque so text stays crisp */
+[data-theme="glass"] .m-input,
+[data-theme="glass"] .m-textarea,
+[data-theme="glass"] .m-select,
+[data-theme="glass"] .m-input-group {
+  border-color: var(--border-strong);
+  box-shadow: inset 0 1px 2px rgb(40 50 120 / 0.08);
+}
+[data-theme="glass"][data-mode="dark"] .m-input,
+[data-theme="glass"][data-mode="dark"] .m-textarea,
+[data-theme="glass"][data-mode="dark"] .m-select,
+[data-theme="glass"][data-mode="dark"] .m-input-group {
+  box-shadow: inset 0 1px 3px rgb(0 0 10 / 0.35);
+}
+
+/* The group already paints --field-bg; keep the translucent field from stacking on itself. */
+[data-theme="glass"] .m-input-group .m-input {
+  background: transparent;
+}
+
+/* Primary buttons: glossy gradient */
+[data-theme="glass"] .m-button.is-primary {
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0) 55%);
+  box-shadow: 0 6px 18px rgb(68 87 232 / 0.38), inset 0 1px 0 rgb(255 255 255 / 0.4);
+}
+[data-theme="glass"][data-mode="dark"] .m-button.is-primary {
+  box-shadow: 0 6px 20px rgb(100 130 255 / 0.28), inset 0 1px 0 rgb(255 255 255 / 0.35);
+}
+[data-theme="glass"] .m-button:not(.is-primary):not(.is-ghost):not(.is-danger) {
+  background-color: rgb(255 255 255 / 0.55);
+  border-color: rgb(255 255 255 / 0.8);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgb(255 255 255 / 0.7);
+}
+[data-theme="glass"][data-mode="dark"] .m-button:not(.is-primary):not(.is-ghost):not(.is-danger) {
+  background-color: rgb(110 130 230 / 0.18);
+  border-color: rgb(180 196 255 / 0.28);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+/* Grid: opaque headers (--grid-surface) so sticky row labels never show cells through */
+[data-theme="glass"] .m-grid-wrap {
+  border-color: rgb(255 255 255 / 0.85);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgb(90 105 190 / 0.25);
+}
+[data-theme="glass"] .m-grid-gap {
+  background: #dbe1f7;
+}
+[data-theme="glass"][data-mode="dark"] .m-grid-wrap {
+  border-color: rgb(180 196 255 / 0.28);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgb(0 0 0 / 0.3);
+}
+[data-theme="glass"][data-mode="dark"] .m-grid-gap {
+  background: #0f1432;
+}
+
+/* Heat-cell emphasis */
+[data-theme="glass"] .m-heat-cell.is-best {
+  box-shadow: inset 0 0 0 2px var(--highlight), 0 0 14px rgb(68 87 232 / 0.5);
+  z-index: 1;
+}
+[data-theme="glass"][data-mode="dark"] .m-heat-cell.is-best {
+  box-shadow: inset 0 0 0 2px var(--highlight), 0 0 14px rgb(138 169 255 / 0.5);
+}
+
+/* Segmented / tabs: glass track with lifted active pill */
+[data-theme="glass"] .m-segmented-option.is-active,
+[data-theme="glass"] .m-tab.is-active {
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgb(255 255 255 / 0.5);
+}
+
+[data-theme="glass"] .m-brand-mark {
+  box-shadow: 0 4px 14px rgb(68 87 232 / 0.4), inset 0 1px 0 rgb(255 255 255 / 0.5);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="glass"] .m-button,
+  [data-theme="glass"] .m-card {
+    transition-property: background-color, border-color, box-shadow, transform, color;
+  }
+  [data-theme="glass"] .m-button.is-primary:hover {
+    transform: translateY(-1px);
+  }
+}
+
+/* Combobox lists and dialogs are mostly opaque so content behind never bleeds into text.
+   (The combobox sits inside a blurred card, where a nested backdrop-filter cannot see the page.) */
+[data-theme="glass"] .m-combobox-list,
+[data-theme="glass"] .m-dialog {
+  background: rgb(246 248 255 / 0.98);
+}
+[data-theme="glass"][data-mode="dark"] .m-combobox-list,
+[data-theme="glass"][data-mode="dark"] .m-dialog {
+  background: rgb(20 27 62 / 0.98);
+}
+/* The theme popover is portalled to <body>, so its backdrop-filter sees the page: truly frosted. */
+[data-theme="glass"] .m-popover,
+[data-theme="glass"] .m-theme-picker {
+  background: rgb(246 248 255 / 0.62);
+}
+[data-theme="glass"][data-mode="dark"] .m-popover,
+[data-theme="glass"][data-mode="dark"] .m-theme-picker {
+  background: rgb(20 27 62 / 0.58);
+}
+[data-theme="glass"] .m-theme-picker {
+  -webkit-backdrop-filter: var(--backdrop);
+  backdrop-filter: var(--backdrop);
+}

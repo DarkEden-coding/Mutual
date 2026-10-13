@@ -1,0 +1,190 @@
+/* Availability grids (editable + heatmap). Tokens only. */
+
+.m-grid-wrap {
+  position: relative;
+  overflow-x: auto;
+  border: var(--border-width) solid var(--cell-border);
+  border-radius: var(--grid-radius);
+  background: var(--grid-surface);
+  overscroll-behavior-x: contain;
+}
+
+.m-grid {
+  display: grid;
+  gap: var(--cell-gap);
+  background: var(--cell-border);
+  width: max-content;
+  min-width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.m-grid-corner,
+.m-grid-colhead,
+.m-grid-rowhead {
+  background: var(--grid-surface);
+}
+.m-grid-gap {
+  background: var(--surface);
+}
+
+.m-grid-corner {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+
+.m-grid-colhead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2) var(--space-1);
+  text-align: center;
+  line-height: 1.2;
+}
+.m-grid-colhead-day {
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+}
+.m-grid-colhead-date {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.m-grid-rowhead {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 2px var(--space-2) 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.m-grid-gap {
+  grid-column: 1 / -1;
+  height: var(--space-3);
+  background: var(--surface-2);
+}
+
+.m-cell,
+.m-heat-cell {
+  height: var(--row-h, 1.75rem);
+  min-width: 0;
+  border-radius: var(--cell-radius);
+  touch-action: manipulation;
+  position: relative;
+}
+.m-cell.is-hour-start,
+.m-heat-cell.is-hour-start {
+  box-shadow: 0 -1px 0 var(--cell-border-strong);
+}
+
+/* -- editable cells -- */
+.m-cell {
+  background: var(--cell-empty);
+  cursor: crosshair;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.m-cell:hover:not(.is-disabled):not(.is-available):not(.is-ifneeded) {
+  background: var(--cell-hover);
+}
+.m-cell.is-available {
+  background: var(--cell-available);
+}
+.m-cell.is-ifneeded {
+  background: var(--cell-ifneeded);
+  background-image: var(--cell-ifneeded-pattern);
+}
+.m-cell.is-preview {
+  box-shadow: inset 0 0 0 2px var(--highlight);
+  z-index: 1;
+}
+.m-cell.is-focus,
+.m-cell:focus-visible {
+  outline: var(--ring-width) solid var(--focus-ring);
+  outline-offset: -2px;
+  z-index: 2;
+}
+.m-grid.is-readonly .m-cell {
+  cursor: default;
+}
+.m-grid.is-painting {
+  cursor: crosshair;
+}
+
+.m-cell.is-disabled,
+.m-heat-cell.is-disabled {
+  background: var(--cell-disabled);
+  background-image: var(--cell-disabled-pattern);
+  cursor: not-allowed;
+}
+
+/* -- heatmap cells -- */
+.m-heat-cell {
+  /* 3-stop ramp: empty -> mid over 0..0.5, mid -> full over 0.5..1 */
+  background: color-mix(
+    in oklab,
+    var(--heat-full) calc(clamp(0, (var(--heat, 0) - 0.5) * 2, 1) * 100%),
+    color-mix(in oklab, var(--heat-mid) calc(clamp(0, var(--heat, 0) * 2, 1) * 100%), var(--heat-empty))
+  );
+  cursor: pointer;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.m-heat-cell.is-disabled {
+  background: var(--cell-disabled);
+  background-image: var(--cell-disabled-pattern);
+}
+.m-heat-cell.is-hovered {
+  box-shadow: inset 0 0 0 2px var(--text);
+  z-index: 1;
+}
+.m-heat-cell.is-best {
+  box-shadow: inset 0 0 0 2px var(--highlight);
+  z-index: 1;
+}
+.m-heat-cell.is-best.is-hovered {
+  box-shadow:
+    inset 0 0 0 2px var(--highlight),
+    inset 0 0 0 4px var(--surface);
+}
+.m-heat-cell.is-dimmed {
+  opacity: 0.28;
+}
+.m-heat-cell.is-person-available {
+  box-shadow: inset 0 0 0 3px var(--highlight);
+  z-index: 1;
+}
+.m-heat-cell.is-person-ifneeded {
+  box-shadow: inset 0 0 0 3px var(--highlight);
+  background-image: var(--cell-ifneeded-pattern);
+  z-index: 1;
+}
+.m-heat-cell:focus-visible {
+  outline: var(--ring-width) solid var(--focus-ring);
+  outline-offset: -2px;
+  z-index: 2;
+}
+
+.m-grid-hint {
+  color: var(--text-muted-on-bg);
+  font-size: var(--text-sm);
+}
+
+@media (hover: none) {
+  .m-cell:hover:not(.is-disabled):not(.is-available):not(.is-ifneeded) {
+    background: var(--cell-empty);
+  }
+}
+@media (max-width: 480px) {
+  .m-grid {
+    --rowhead-w: 3rem;
+    --col-min-w: 2.75rem;
+  }
+}

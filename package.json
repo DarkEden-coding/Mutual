@@ -1,0 +1,12 @@
+{
+  "name": "mutual",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix web install",
+    "dev": "npx concurrently -n server,web \"npm --prefix server run dev\" \"npm --prefix web run dev\"",
+    "build": "npm --prefix web run build && npm --prefix server run build",
+    "start": "npm --prefix server start",
+    "test": "npm --prefix server test && npm --prefix web test --if-present"
+  }
+}

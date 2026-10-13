@@ -1,0 +1,894 @@
+@import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Pixelify+Sans:wght@400;500;600;700&display=swap');
+
+/*
+ * Theme: Retro OS (eccentric)
+ * Light  = Windows 95/98: teal desktop, silver beveled windows, navy gradient title bars.
+ * Dark   = Windows 98 "after hours": midnight-teal desktop, charcoal windows, same bevel language.
+ * Bevels are built from 2px borders (outer hi/dark) + one inset shadow (inner hi2/shadow).
+ */
+
+[data-theme="retro-os"] {
+  /* Typography */
+  --font-body: 'DotGothic16', 'MS Sans Serif', 'Microsoft Sans Serif', Tahoma, Geneva, sans-serif;
+  --font-heading: 'Pixelify Sans', 'DotGothic16', 'MS Sans Serif', Tahoma, sans-serif;
+  --font-mono: 'Courier New', Courier, 'Lucida Console', monospace;
+  --weight-regular: 400;
+  --weight-medium: 400;
+  --weight-semibold: 700;
+  --weight-bold: 700;
+  --weight-heading: 600;
+  --heading-tracking: 0;
+  --heading-transform: none;
+  --body-tracking: 0.01em;
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.625rem;
+  --text-2xl: 2.125rem;
+  --text-3xl: 2.875rem;
+
+  /* Shape: square corners, chunky 2px borders */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-pill: 0px;
+  --border-width: 2px;
+  --control-h: 2.625rem;
+  --control-h-sm: 2rem;
+
+  /* Focus: dotted/dashed rects, like the old focus rectangle */
+  --ring-width: 2px;
+  --ring-offset: 2px;
+
+  /* Motion: snappy, no easing flourishes */
+  --dur-fast: 0ms;
+  --dur-base: 80ms;
+  --dur-slow: 120ms;
+  --ease-out: steps(1, end);
+  --ease-in-out: steps(1, end);
+  --ease-spring: steps(1, end);
+
+  --bg-image: none;
+  --backdrop: none;
+
+  /* Grid */
+  --cell-gap: 1px;
+  --cell-radius: 0px;
+  --grid-radius: 0px;
+  --rowhead-w: 3.5rem;
+  --col-min-w: 3.5rem;
+}
+
+/* ================= LIGHT: Windows 95 ================= */
+[data-theme="retro-os"],
+[data-theme="retro-os"][data-mode="light"] {
+  /* private bevel palette */
+  --r-face: #c0c0c0;
+  --r-hi: #ffffff;
+  --r-hi2: #dfdfdf;
+  --r-sh: #808080;
+  --r-dk: #000000;
+  --r-title: linear-gradient(90deg, #000080 0%, #1084d0 100%);
+  --r-title-text: #ffffff;
+  --r-tip: #ffffe1;
+  --r-shadow: 2px 2px 0 rgb(0 0 0 / 0.55);
+
+  --bg: #008080;
+  --surface: #c0c0c0;
+  --surface-2: #dfdfdf;
+  --elevated: #c0c0c0;
+  --overlay: rgb(0 40 40 / 0.55);
+
+  --text: #000000;
+  --text-muted: #404040;
+  --text-faint: #595959;
+
+  --border: #808080;
+  --border-strong: #000000;
+
+  --accent: #000080;
+  --accent-hover: #0000a8;
+  --accent-contrast: #ffffff;
+  --accent-soft: #b8c4ff;
+
+  --danger: #b00000;
+  --danger-soft: #ffd0d0;
+  --success: #006400;
+  --success-soft: #c6f0c6;
+  --warning: #7a4a00;
+  --warning-soft: #fff2a0;
+
+  --focus-ring: #000080;
+  --selection-bg: #000080;
+  --highlight: #e00000;
+  --highlight-soft: #ffe0a8;
+
+  --shadow-sm: none;
+  --shadow-md: 2px 2px 0 rgb(0 0 0 / 0.5);
+  --shadow-lg: 4px 4px 0 rgb(0 0 0 / 0.5);
+
+  --cell-empty: #ffffff;
+  --cell-available: #00b050;
+  --cell-ifneeded: #ffe000;
+  --cell-ifneeded-pattern: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.38) 0 2px, transparent 2px 6px);
+  --cell-disabled: #c0c0c0;
+  --cell-disabled-pattern: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.22) 0 1px, transparent 1px 4px);
+  --cell-border: #808080;
+  --cell-border-strong: #000000;
+  --cell-hover: #b0c8ff;
+
+  --heat-empty: #ffffff;
+  --heat-full: #000080;
+  --field-bg: #ffffff;
+  --text-on-bg: #ffffff;
+  --text-muted-on-bg: #ffffff;
+  --tooltip-bg: var(--r-tip);
+  --tooltip-text: var(--text);
+  --tooltip-border: var(--r-dk);
+}
+
+/* ================= DARK: Windows 98 after hours ================= */
+[data-theme="retro-os"][data-mode="dark"] {
+  --r-face: #3a3a42;
+  --r-hi: #8e8e9a;
+  --r-hi2: #5a5a66;
+  --r-sh: #1a1a1f;
+  --r-dk: #000000;
+  --r-title: linear-gradient(90deg, #00004a 0%, #2a6cb8 100%);
+  --r-title-text: #ffffff;
+  --r-tip: #20202a;
+  --r-shadow: 2px 2px 0 rgb(0 0 0 / 0.8);
+
+  --bg: #07262b;
+  --surface: #3a3a42;
+  --surface-2: #2a2a30;
+  --elevated: #3a3a42;
+  --overlay: rgb(0 0 0 / 0.65);
+
+  --text: #f2f2f2;
+  --text-muted: #c4c4cc;
+  --text-faint: #9c9ca8;
+
+  --border: #1a1a1f;
+  --border-strong: #8e8e9a;
+
+  --accent: #62b4ff;
+  --accent-hover: #8cc9ff;
+  --accent-contrast: #000000;
+  --accent-soft: #1c3a5e;
+
+  --danger: #ff7a7a;
+  --danger-soft: #4a1a1c;
+  --success: #5fe08a;
+  --success-soft: #153a22;
+  --warning: #ffd04a;
+  --warning-soft: #44360c;
+
+  --focus-ring: #ffff55;
+  --selection-bg: #2a6cb8;
+  --highlight: #ffff40;
+  --highlight-soft: #4a4510;
+
+  --shadow-sm: none;
+  --shadow-md: 2px 2px 0 rgb(0 0 0 / 0.8);
+  --shadow-lg: 4px 4px 0 rgb(0 0 0 / 0.8);
+
+  --cell-empty: #0b0b10;
+  --cell-available: #19c25a;
+  --cell-ifneeded: #e6c200;
+  --cell-ifneeded-pattern: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.5) 0 2px, transparent 2px 6px);
+  --cell-disabled: #2a2a30;
+  --cell-disabled-pattern: repeating-linear-gradient(135deg, rgb(255 255 255 / 0.14) 0 1px, transparent 1px 4px);
+  --cell-border: #50505c;
+  --cell-border-strong: #a0a0ae;
+  --cell-hover: #1c3a5e;
+
+  --heat-empty: #0b0b10;
+  --heat-full: #62b4ff;
+  --field-bg: #0b0b10;
+  --text-on-bg: #e8f4f4;
+  --text-muted-on-bg: #e8f4f4;
+  --tooltip-bg: var(--r-tip);
+  --tooltip-text: var(--text);
+  --tooltip-border: var(--r-hi);
+}
+
+/* ================= Shared decoration ================= */
+[data-theme="retro-os"] ::selection {
+  background: var(--selection-bg);
+  color: #ffffff;
+}
+
+[data-theme="retro-os"] body,
+body[data-theme="retro-os"] {
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+[data-theme="retro-os"] .m-app,
+[data-theme="retro-os"] .m-app * {
+  -webkit-font-smoothing: none;
+}
+
+[data-theme="retro-os"] :focus-visible {
+  outline-style: dashed;
+}
+
+/* ---- Raised / sunken surfaces ---- */
+[data-theme="retro-os"] .m-card,
+[data-theme="retro-os"] .m-banner,
+[data-theme="retro-os"] .m-popover,
+[data-theme="retro-os"] .m-dialog {
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+  box-shadow:
+    inset -1px -1px 0 var(--r-sh),
+    inset 1px 1px 0 var(--r-hi2),
+    var(--shadow-md);
+}
+[data-theme="retro-os"] .m-dialog,
+[data-theme="retro-os"] .m-popover {
+  box-shadow:
+    inset -1px -1px 0 var(--r-sh),
+    inset 1px 1px 0 var(--r-hi2),
+    var(--shadow-lg);
+}
+
+/* ---- Header = taskbar ---- */
+[data-theme="retro-os"] .m-header {
+  background: var(--r-face);
+  border-bottom: 2px solid var(--r-dk);
+  box-shadow:
+    inset 0 -1px 0 var(--r-sh),
+    inset 0 1px 0 var(--r-hi);
+}
+[data-theme="retro-os"] .m-brand {
+  font-weight: var(--weight-bold);
+}
+[data-theme="retro-os"] .m-brand-mark {
+  color: var(--accent);
+  background: var(--r-face);
+  border: 2px solid;
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+  box-shadow: inset -1px -1px 0 var(--r-sh);
+}
+
+/* ---- Text sitting straight on the desktop ---- */
+/* (--text-on-bg / --text-muted-on-bg are white-ish; only the drop shadow is theme CSS.) */
+[data-theme="retro-os"] .m-hero h1,
+[data-theme="retro-os"] .m-hero p,
+[data-theme="retro-os"] .m-event-head .m-event-title,
+[data-theme="retro-os"] .m-event-head .m-event-desc,
+[data-theme="retro-os"] .m-event-head .m-event-tz > span,
+[data-theme="retro-os"] .m-state-title,
+[data-theme="retro-os"] .m-state p,
+[data-theme="retro-os"] .m-panel > .m-toolbar > .m-card-title,
+[data-theme="retro-os"] .m-signed-in > span,
+[data-theme="retro-os"] .m-grid-hint,
+[data-theme="retro-os"] .m-footer {
+  text-shadow: 1px 1px 0 rgb(0 0 0 / 0.75);
+}
+
+/* ---- Cards = windows with a title bar ---- */
+[data-theme="retro-os"] .m-card {
+  padding: var(--space-4);
+}
+[data-theme="retro-os"] .m-card-header {
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-4);
+  padding: 3px 8px;
+  min-height: 1.75rem;
+  gap: var(--space-2);
+  background: var(--r-title);
+  color: var(--r-title-text);
+  border: 2px solid var(--r-face);
+}
+[data-theme="retro-os"] .m-card-header .m-card-title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  color: var(--r-title-text);
+}
+[data-theme="retro-os"] .m-card-header .m-card-sub {
+  color: rgb(255 255 255 / 0.85);
+  margin-top: 0;
+  font-size: var(--text-xs);
+}
+[data-theme="retro-os"] .m-card-header .m-badge,
+[data-theme="retro-os"] .m-card-header .m-saved {
+  color: var(--r-title-text);
+}
+
+/* ---- Buttons ---- */
+[data-theme="retro-os"] .m-button,
+[data-theme="retro-os"] .m-chip,
+[data-theme="retro-os"] .m-best-item,
+[data-theme="retro-os"] .m-participant,
+[data-theme="retro-os"] .m-theme-card,
+[data-theme="retro-os"] .m-segmented-option.is-active {
+  background: var(--r-face);
+  color: var(--text);
+  border: 2px solid;
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+  box-shadow:
+    inset -1px -1px 0 var(--r-sh),
+    inset 1px 1px 0 var(--r-hi2);
+  transform: none;
+}
+[data-theme="retro-os"] .m-button {
+  font-weight: var(--weight-semibold);
+}
+[data-theme="retro-os"] .m-button:hover:not(:disabled) {
+  background: var(--r-face);
+}
+[data-theme="retro-os"] .m-button:active:not(:disabled),
+[data-theme="retro-os"] .m-chip:active,
+[data-theme="retro-os"] .m-best-item:active,
+[data-theme="retro-os"] .m-participant:active,
+[data-theme="retro-os"] .m-theme-card:active {
+  border-color: var(--r-dk) var(--r-hi) var(--r-hi) var(--r-dk);
+  box-shadow:
+    inset 1px 1px 0 var(--r-sh),
+    inset -1px -1px 0 var(--r-hi2);
+  transform: none;
+  padding-top: 2px;
+  padding-left: calc(var(--space-4) + 2px);
+}
+[data-theme="retro-os"] .m-button.is-small:active:not(:disabled) {
+  padding-left: calc(var(--space-3) + 2px);
+}
+[data-theme="retro-os"] .m-button.is-icon:active:not(:disabled) {
+  padding-left: 2px;
+}
+[data-theme="retro-os"] .m-button:disabled {
+  opacity: 1;
+  color: var(--r-sh);
+  text-shadow: 1px 1px 0 var(--r-hi);
+}
+[data-theme="retro-os"][data-mode="dark"] .m-button:disabled {
+  color: #7a7a86;
+  text-shadow: 1px 1px 0 #000;
+}
+
+[data-theme="retro-os"] .m-button.is-primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+  box-shadow:
+    inset -1px -1px 0 rgb(0 0 0 / 0.55),
+    inset 1px 1px 0 rgb(255 255 255 / 0.35),
+    0 0 0 1px var(--r-dk);
+}
+[data-theme="retro-os"] .m-button.is-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+}
+[data-theme="retro-os"] .m-button.is-primary:active:not(:disabled) {
+  border-color: var(--r-dk) var(--r-hi) var(--r-hi) var(--r-dk);
+  box-shadow:
+    inset 1px 1px 0 rgb(0 0 0 / 0.55),
+    0 0 0 1px var(--r-dk);
+}
+[data-theme="retro-os"] .m-button.is-primary:disabled {
+  background: var(--r-face);
+  color: var(--r-sh);
+}
+
+[data-theme="retro-os"] .m-button.is-ghost {
+  background: transparent;
+  color: var(--text);
+  border-color: transparent;
+  box-shadow: none;
+}
+[data-theme="retro-os"] .m-button.is-ghost:hover:not(:disabled) {
+  background: var(--r-face);
+  color: var(--text);
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+  box-shadow:
+    inset -1px -1px 0 var(--r-sh),
+    inset 1px 1px 0 var(--r-hi2);
+}
+[data-theme="retro-os"] .m-button.is-danger {
+  color: var(--danger);
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+}
+[data-theme="retro-os"] .m-button.is-danger.is-primary,
+[data-theme="retro-os"] .m-button.is-danger.is-solid {
+  background: #b00000;
+  color: #ffffff;
+}
+[data-theme="retro-os"][data-mode="dark"] .m-button.is-danger.is-primary,
+[data-theme="retro-os"][data-mode="dark"] .m-button.is-danger.is-solid {
+  background: #ff7a7a;
+  color: #000000;
+}
+
+/* Buttons that live in a title bar behave like the [x] control */
+[data-theme="retro-os"] .m-card-header .m-button.is-ghost,
+[data-theme="retro-os"] .m-dialog-header .m-button.is-ghost {
+  background: var(--r-face);
+  color: var(--text);
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+  box-shadow:
+    inset -1px -1px 0 var(--r-sh),
+    inset 1px 1px 0 var(--r-hi2);
+}
+
+/* ---- Fields: sunken ---- */
+[data-theme="retro-os"] .m-input,
+[data-theme="retro-os"] .m-select,
+[data-theme="retro-os"] .m-textarea,
+[data-theme="retro-os"] .m-copy-row .m-input {
+  background-color: var(--field-bg);
+  color: var(--text);
+  border: 2px solid;
+  border-color: var(--r-sh) var(--r-hi) var(--r-hi) var(--r-sh);
+  box-shadow:
+    inset 1px 1px 0 var(--r-dk),
+    inset -1px -1px 0 var(--r-hi2);
+}
+[data-theme="retro-os"] .m-input:hover,
+[data-theme="retro-os"] .m-select:hover,
+[data-theme="retro-os"] .m-textarea:hover {
+  border-color: var(--r-sh) var(--r-hi) var(--r-hi) var(--r-sh);
+}
+[data-theme="retro-os"] .m-input:focus-visible,
+[data-theme="retro-os"] .m-select:focus-visible,
+[data-theme="retro-os"] .m-textarea:focus-visible {
+  outline-offset: 1px;
+  border-color: var(--r-sh) var(--r-hi) var(--r-hi) var(--r-sh);
+}
+[data-theme="retro-os"] .m-input[aria-invalid='true'] {
+  outline: 2px solid var(--danger);
+  outline-offset: 0;
+}
+[data-theme="retro-os"] .m-input:disabled,
+[data-theme="retro-os"] .m-select:disabled,
+[data-theme="retro-os"] .m-textarea:disabled {
+  opacity: 1;
+  background-color: var(--r-face);
+  color: var(--r-sh);
+}
+[data-theme="retro-os"] .m-input-prefix {
+  background: var(--r-face);
+  color: var(--text);
+  border: 2px solid;
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+  border-right-width: 2px;
+  box-shadow: inset -1px -1px 0 var(--r-sh), inset 1px 1px 0 var(--r-hi2);
+}
+[data-theme="retro-os"] .m-label {
+  font-weight: var(--weight-semibold);
+}
+[data-theme="retro-os"] .m-label .m-optional {
+  color: var(--text-muted);
+}
+
+/* ---- Segmented: sunken track, raised active ---- */
+[data-theme="retro-os"] .m-segmented {
+  background: var(--r-hi2);
+  border: 2px solid;
+  border-color: var(--r-sh) var(--r-hi) var(--r-hi) var(--r-sh);
+  padding: 2px;
+  gap: 2px;
+}
+[data-theme="retro-os"][data-mode="dark"] .m-segmented {
+  background: var(--r-sh);
+}
+[data-theme="retro-os"] .m-segmented-option {
+  color: var(--text);
+  border-radius: 0;
+}
+[data-theme="retro-os"] .m-segmented-option:hover:not(.is-active) {
+  background: rgb(255 255 255 / 0.35);
+  color: var(--text);
+}
+[data-theme="retro-os"][data-mode="dark"] .m-segmented-option:hover:not(.is-active) {
+  background: rgb(255 255 255 / 0.08);
+}
+[data-theme="retro-os"] .m-segmented-option.is-active {
+  font-weight: var(--weight-bold);
+}
+
+/* ---- Tabs ---- */
+[data-theme="retro-os"] .m-tabs {
+  gap: 2px;
+  border-bottom: 2px solid;
+  border-bottom-color: var(--r-hi);
+  box-shadow: 0 1px 0 var(--r-sh);
+  padding: 0 2px;
+}
+[data-theme="retro-os"] .m-tab {
+  min-height: calc(var(--control-h) - 4px);
+  align-self: flex-end;
+  background: var(--r-face);
+  color: var(--text);
+  border: 2px solid;
+  border-color: var(--r-hi) var(--r-dk) transparent var(--r-hi);
+  box-shadow: inset -1px 0 0 var(--r-sh), inset 1px 1px 0 var(--r-hi2);
+  margin-bottom: -2px;
+}
+[data-theme="retro-os"] .m-tab:hover:not(.is-active) {
+  color: var(--text);
+  background: var(--r-hi2);
+}
+[data-theme="retro-os"][data-mode="dark"] .m-tab:hover:not(.is-active) {
+  background: var(--r-hi2);
+}
+[data-theme="retro-os"] .m-tab.is-active {
+  color: var(--text);
+  font-weight: var(--weight-bold);
+  min-height: var(--control-h);
+  border-bottom-color: var(--r-face);
+  padding-bottom: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- Chip ---- */
+[data-theme="retro-os"] .m-chip {
+  color: var(--text);
+}
+[data-theme="retro-os"] .m-chip:hover:not(.is-active) {
+  background: var(--r-face);
+  color: var(--text);
+}
+[data-theme="retro-os"] .m-chip.is-active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--r-dk) var(--r-hi) var(--r-hi) var(--r-dk);
+  box-shadow: inset 1px 1px 0 rgb(0 0 0 / 0.55);
+}
+
+/* ---- Badge ---- */
+[data-theme="retro-os"] .m-badge {
+  background: var(--r-face);
+  color: var(--text);
+  border: 1px solid var(--r-dk);
+  font-weight: var(--weight-semibold);
+  padding: 0 var(--space-2);
+}
+[data-theme="retro-os"] .m-badge.is-accent {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+[data-theme="retro-os"] .m-badge.is-success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+[data-theme="retro-os"] .m-badge.is-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+[data-theme="retro-os"] .m-badge.is-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* ---- Banner ---- */
+[data-theme="retro-os"] .m-banner.is-success {
+  background: var(--success-soft);
+  border-color: var(--success);
+}
+[data-theme="retro-os"] .m-banner.is-danger {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+[data-theme="retro-os"] .m-banner-title {
+  font-weight: var(--weight-bold);
+}
+
+/* ---- Dialog ---- */
+[data-theme="retro-os"] .m-dialog {
+  padding: 2px;
+}
+[data-theme="retro-os"] .m-dialog::backdrop {
+  background: var(--overlay);
+  backdrop-filter: none;
+}
+[data-theme="retro-os"] .m-dialog-header {
+  padding: 3px 4px 3px 8px;
+  min-height: 1.75rem;
+  background: var(--r-title);
+  color: var(--r-title-text);
+}
+[data-theme="retro-os"] .m-dialog-title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  color: var(--r-title-text);
+}
+[data-theme="retro-os"] .m-dialog-header .m-button {
+  min-height: var(--control-h-sm);
+}
+[data-theme="retro-os"] .m-dialog-body {
+  padding: var(--space-4) var(--space-4) var(--space-3);
+}
+[data-theme="retro-os"] .m-dialog-footer {
+  padding: var(--space-2) var(--space-4) var(--space-4);
+}
+
+/* ---- Popover / theme picker ---- */
+[data-theme="retro-os"] .m-popover {
+  background: var(--r-face);
+}
+[data-theme="retro-os"] .m-theme-group-title {
+  color: var(--text);
+  font-weight: var(--weight-bold);
+  border-bottom: 1px solid var(--r-sh);
+  padding-bottom: 2px;
+}
+[data-theme="retro-os"] .m-theme-card:hover {
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+  transform: none;
+  background: var(--r-hi2);
+}
+[data-theme="retro-os"][data-mode="dark"] .m-theme-card:hover {
+  background: var(--r-hi2);
+}
+[data-theme="retro-os"] .m-theme-card.is-active {
+  border-color: var(--r-dk) var(--r-hi) var(--r-hi) var(--r-dk);
+  box-shadow: inset 1px 1px 0 var(--r-sh), 0 0 0 2px var(--accent);
+  font-weight: var(--weight-bold);
+}
+[data-theme="retro-os"] .m-theme-preview {
+  border: 1px solid var(--r-dk);
+}
+
+/* ---- Combobox ---- */
+[data-theme="retro-os"] .m-combobox-list {
+  background: var(--field-bg);
+  border: 2px solid var(--r-dk);
+  box-shadow: var(--shadow-md);
+  padding: 1px;
+}
+[data-theme="retro-os"] .m-combobox-option.is-active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+[data-theme="retro-os"] .m-combobox-option.is-active .m-combobox-meta {
+  color: var(--accent-contrast);
+}
+[data-theme="retro-os"] .m-combobox-option[aria-selected='true'] {
+  color: var(--text);
+  font-weight: var(--weight-bold);
+}
+[data-theme="retro-os"] .m-combobox-option[aria-selected='true'].is-active {
+  color: var(--accent-contrast);
+}
+[data-theme="retro-os"] .m-combobox-option .m-combobox-meta {
+  color: var(--text-muted);
+}
+
+/* ---- Calendar ---- */
+[data-theme="retro-os"] .m-calendar-title {
+  font-weight: var(--weight-bold);
+}
+[data-theme="retro-os"] .m-calendar-weekday {
+  color: var(--text);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0;
+}
+[data-theme="retro-os"] .m-calendar-days {
+  gap: 2px;
+}
+[data-theme="retro-os"] .m-calendar-day {
+  background: var(--field-bg);
+  border-width: 2px;
+  border-color: var(--field-bg);
+}
+[data-theme="retro-os"] .m-calendar-day:hover:not(:disabled):not(.is-selected) {
+  background: var(--r-face);
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+  box-shadow: inset -1px -1px 0 var(--r-sh), inset 1px 1px 0 var(--r-hi2);
+}
+[data-theme="retro-os"] .m-calendar-day.is-today {
+  border: 2px dotted var(--text);
+  font-weight: var(--weight-bold);
+}
+[data-theme="retro-os"] .m-calendar-day.is-selected {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--r-dk) var(--r-hi) var(--r-hi) var(--r-dk);
+  box-shadow: inset 1px 1px 0 rgb(0 0 0 / 0.5);
+}
+[data-theme="retro-os"] .m-calendar-day.is-preview {
+  background: var(--accent-soft);
+  color: var(--text);
+  border: 2px dashed var(--accent);
+}
+[data-theme="retro-os"] .m-calendar-day.is-preview-remove {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 2px dashed var(--danger);
+}
+[data-theme="retro-os"] .m-calendar-day.is-disabled,
+[data-theme="retro-os"] .m-calendar-day:disabled {
+  background: var(--r-face);
+  border-color: var(--r-face);
+  color: var(--r-sh);
+  opacity: 1;
+  text-shadow: 1px 1px 0 var(--r-hi);
+}
+[data-theme="retro-os"][data-mode="dark"] .m-calendar-day.is-disabled,
+[data-theme="retro-os"][data-mode="dark"] .m-calendar-day:disabled {
+  color: #7a7a86;
+  text-shadow: 1px 1px 0 #000;
+}
+
+/* ---- Tooltip / toast ---- */
+[data-theme="retro-os"] .m-toast {
+  background: var(--r-face);
+  color: var(--text);
+  border: 2px solid;
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+  box-shadow: inset -1px -1px 0 var(--r-sh), inset 1px 1px 0 var(--r-hi2), var(--shadow-lg);
+}
+[data-theme="retro-os"] .m-toast.is-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+[data-theme="retro-os"] .m-toast.is-success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+/* ---- Misc ---- */
+[data-theme="retro-os"] .m-saved {
+  font-weight: var(--weight-semibold);
+}
+[data-theme="retro-os"] .m-spinner {
+  border-radius: 0;
+  border: 3px solid var(--r-sh);
+  border-top-color: var(--accent);
+  animation-timing-function: steps(8, end);
+}
+
+[data-theme="retro-os"] .m-swatch-dot,
+[data-theme="retro-os"] .m-legend-swatch {
+  border: 1px solid var(--r-dk);
+}
+[data-theme="retro-os"][data-mode="dark"] .m-swatch-dot,
+[data-theme="retro-os"][data-mode="dark"] .m-legend-swatch {
+  border-color: var(--r-hi);
+}
+[data-theme="retro-os"] .m-legend-bar {
+  border: 2px solid;
+  border-color: var(--r-sh) var(--r-hi) var(--r-hi) var(--r-sh);
+}
+[data-theme="retro-os"] .m-legend {
+  color: var(--text);
+}
+
+/* ---- Participants ---- */
+[data-theme="retro-os"] .m-participant {
+  font-weight: var(--weight-medium);
+}
+[data-theme="retro-os"] .m-participant:hover {
+  background: var(--r-hi2);
+  color: var(--text);
+  border-color: var(--r-hi) var(--r-dk) var(--r-dk) var(--r-hi);
+}
+[data-theme="retro-os"] .m-participant.is-active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--r-dk) var(--r-hi) var(--r-hi) var(--r-dk);
+  box-shadow: inset 1px 1px 0 rgb(0 0 0 / 0.5);
+}
+[data-theme="retro-os"] .m-participant.is-me {
+  font-weight: var(--weight-bold);
+}
+[data-theme="retro-os"] .m-participant-dot {
+  border-radius: 0;
+  border: 1px solid var(--r-dk);
+}
+
+/* ---- Best times ---- */
+[data-theme="retro-os"] .m-best-item:hover {
+  background: var(--r-hi2);
+}
+[data-theme="retro-os"] .m-best-item.is-active {
+  background: var(--highlight-soft);
+  border-color: var(--r-dk) var(--r-hi) var(--r-hi) var(--r-dk);
+  box-shadow: inset 1px 1px 0 var(--r-sh), 0 0 0 2px var(--highlight);
+  color: var(--text);
+}
+[data-theme="retro-os"] .m-best-rank {
+  border-radius: 0;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: 1px solid var(--r-dk);
+}
+[data-theme="retro-os"] .m-best-meta {
+  color: var(--text-muted);
+}
+[data-theme="retro-os"] .m-best-item.is-active .m-best-meta {
+  color: var(--text);
+}
+
+/* ---- Tooltip roster: plain text on the classic yellow tip ---- */
+[data-theme="retro-os"] .m-tooltip-title {
+  font-weight: var(--weight-bold);
+}
+[data-theme="retro-os"] .m-roster-heading {
+  letter-spacing: 0;
+}
+
+/* ================= Grids ================= */
+[data-theme="retro-os"] .m-grid-wrap {
+  border: 2px solid;
+  border-color: var(--r-sh) var(--r-hi) var(--r-hi) var(--r-sh);
+  background: var(--r-face);
+  box-shadow: inset 1px 1px 0 var(--r-dk);
+}
+[data-theme="retro-os"] .m-grid-corner,
+[data-theme="retro-os"] .m-grid-colhead,
+[data-theme="retro-os"] .m-grid-rowhead {
+  background: var(--r-face);
+  color: var(--text);
+}
+[data-theme="retro-os"] .m-grid-colhead {
+  box-shadow:
+    inset -1px -1px 0 var(--r-sh),
+    inset 1px 1px 0 var(--r-hi);
+}
+[data-theme="retro-os"] .m-grid-colhead-day {
+  font-weight: var(--weight-bold);
+}
+[data-theme="retro-os"] .m-grid-colhead-date {
+  color: var(--text-muted);
+}
+[data-theme="retro-os"] .m-grid-rowhead {
+  color: var(--text);
+  font-weight: var(--weight-medium);
+}
+[data-theme="retro-os"] .m-grid-gap {
+  background: var(--r-sh);
+  background-image: var(--cell-disabled-pattern);
+}
+
+/* Editable cells: flat solid colors, crisp lines */
+[data-theme="retro-os"] .m-cell {
+  cursor: crosshair;
+}
+[data-theme="retro-os"] .m-cell.is-available {
+  background: var(--cell-available);
+}
+[data-theme="retro-os"] .m-cell.is-preview {
+  box-shadow: inset 0 0 0 2px var(--highlight), inset 0 0 0 3px var(--field-bg);
+}
+[data-theme="retro-os"] .m-cell.is-focus,
+[data-theme="retro-os"] .m-cell:focus-visible {
+  outline: 2px dashed var(--focus-ring);
+  outline-offset: -3px;
+}
+
+/* Heatmap cells */
+[data-theme="retro-os"] .m-heat-cell.is-hovered {
+  box-shadow: inset 0 0 0 2px var(--text), inset 0 0 0 3px var(--field-bg);
+}
+[data-theme="retro-os"] .m-heat-cell.is-best {
+  box-shadow: inset 0 0 0 2px var(--highlight), inset 0 0 0 3px var(--field-bg);
+}
+[data-theme="retro-os"] .m-heat-cell.is-best.is-hovered {
+  box-shadow:
+    inset 0 0 0 2px var(--highlight),
+    inset 0 0 0 3px var(--field-bg),
+    inset 0 0 0 5px var(--text);
+}
+[data-theme="retro-os"] .m-heat-cell.is-dimmed {
+  opacity: 0.35;
+}
+[data-theme="retro-os"] .m-heat-cell.is-person-available,
+[data-theme="retro-os"] .m-heat-cell.is-person-ifneeded {
+  box-shadow: inset 0 0 0 3px var(--highlight), inset 0 0 0 4px var(--field-bg);
+}
+[data-theme="retro-os"] .m-heat-cell:focus-visible {
+  outline: 2px dashed var(--focus-ring);
+  outline-offset: -3px;
+}
+
+/* Legend reads as a status-bar strip so it works on desktop or window */
+[data-theme="retro-os"] .m-legend {
+  background: var(--r-face);
+  padding: 4px 8px;
+  border: 2px solid;
+  border-color: var(--r-sh) var(--r-hi) var(--r-hi) var(--r-sh);
+}

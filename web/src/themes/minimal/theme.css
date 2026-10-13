@@ -1,0 +1,181 @@
+/*
+ * Theme: Minimal (classic, default)
+ * The reference implementation. Token values here equal the defaults in styles/tokens.css;
+ * they are repeated on purpose so this file is a complete, copyable example for theme authors.
+ */
+
+[data-theme="minimal"] {
+  /* Typography */
+  --font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-heading: var(--font-body);
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-heading: 650;
+  --heading-tracking: -0.02em;
+  --heading-transform: none;
+  --body-tracking: 0;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.75rem;
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --border-width: 1px;
+  --control-h: 2.625rem;
+  --control-h-sm: 2rem;
+  --content-width: 76rem;
+  --header-h: 3.5rem;
+
+  /* Focus */
+  --ring-width: 2px;
+  --ring-offset: 2px;
+
+  /* Motion */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 360ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Decoration hooks */
+  --bg-image: none;
+  --backdrop: none;
+
+  /* Grid geometry */
+  --cell-gap: 1px;
+  --cell-radius: 0px;
+  --grid-radius: var(--radius-md);
+  --rowhead-w: 3.5rem;
+  --col-min-w: 3.25rem;
+}
+
+[data-theme="minimal"],
+[data-theme="minimal"][data-mode="light"] {
+  --bg: #f6f6f3;
+  --surface: #ffffff;
+  --surface-2: #f0f0ec;
+  --elevated: #ffffff;
+  --overlay: rgb(16 16 24 / 0.42);
+
+  --text: #16161a;
+  --text-muted: #575762;
+  --text-faint: #80808c;
+
+  --border: #e3e3de;
+  --border-strong: #c9c9c2;
+
+  --accent: #4338ca;
+  --accent-hover: #3730a3;
+  --accent-contrast: #ffffff;
+  --accent-soft: #ebeafc;
+
+  --danger: #c62828;
+  --danger-soft: #fdeaea;
+  --success: #17795a;
+  --success-soft: #e3f5ee;
+  --warning: #a8530a;
+  --warning-soft: #fdf1de;
+
+  --focus-ring: #4338ca;
+  --selection-bg: #cfcbff;
+  --highlight: #4338ca;
+  --highlight-soft: #ebeafc;
+
+  --shadow-sm: 0 1px 2px rgb(20 20 40 / 0.06);
+  --shadow-md: 0 4px 16px rgb(20 20 40 / 0.08), 0 1px 3px rgb(20 20 40 / 0.05);
+  --shadow-lg: 0 18px 48px rgb(20 20 40 / 0.16), 0 4px 12px rgb(20 20 40 / 0.06);
+
+  --cell-empty: #f0f0ec;
+  --cell-available: #36b37e;
+  --cell-ifneeded: #f4be4f;
+  --cell-ifneeded-pattern: repeating-linear-gradient(135deg, rgb(255 255 255 / 0.5) 0 3px, transparent 3px 7px);
+  --cell-disabled: #e6e6e1;
+  --cell-disabled-pattern: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.07) 0 2px, transparent 2px 6px);
+  --cell-border: #e3e3de;
+  --cell-border-strong: #c9c9c2;
+  --cell-hover: #dcdcf8;
+
+  --heat-empty: #f0f0ec;
+  --heat-full: #1f9d6a;
+}
+
+[data-theme="minimal"][data-mode="dark"] {
+  --bg: #101012;
+  --surface: #18181b;
+  --surface-2: #212126;
+  --elevated: #1f1f24;
+  --overlay: rgb(0 0 0 / 0.6);
+
+  --text: #f2f2f4;
+  --text-muted: #a6a6b0;
+  --text-faint: #7a7a85;
+
+  --border: #2c2c33;
+  --border-strong: #41414b;
+
+  --accent: #8b85ff;
+  --accent-hover: #a29dff;
+  --accent-contrast: #0f0e22;
+  --accent-soft: #26244a;
+
+  --danger: #ff7b7b;
+  --danger-soft: #3a1c1f;
+  --success: #3ddc97;
+  --success-soft: #153126;
+  --warning: #f5b94a;
+  --warning-soft: #372a12;
+
+  --focus-ring: #a29dff;
+  --selection-bg: #3d3a85;
+  --highlight: #b6b2ff;
+  --highlight-soft: #26244a;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 6px 20px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 22px 56px rgb(0 0 0 / 0.6), 0 4px 12px rgb(0 0 0 / 0.4);
+
+  --cell-empty: #212126;
+  --cell-available: #2ea97a;
+  --cell-ifneeded: #cf9a2c;
+  --cell-ifneeded-pattern: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.28) 0 3px, transparent 3px 7px);
+  --cell-disabled: #16161a;
+  --cell-disabled-pattern: repeating-linear-gradient(135deg, rgb(255 255 255 / 0.06) 0 2px, transparent 2px 6px);
+  --cell-border: #2c2c33;
+  --cell-border-strong: #41414b;
+  --cell-hover: #34325f;
+
+  --heat-empty: #212126;
+  --heat-full: #3ddc97;
+}
+
+/* ---- Decoration ---- */
+[data-theme="minimal"] .m-card {
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="minimal"] .m-header {
+  background: color-mix(in oklab, var(--bg) 82%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
+}

@@ -1,0 +1,31 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:${HOST_PORT:-8787}:8787"
+    volumes:
+      - mutual-data:/data
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: 8787
+      DATA_DIR: /data
+      TRUST_PROXY: ${TRUST_PROXY:-cloudflare}
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
+    restart: unless-stopped
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles:
+      - tunnel
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mutual-data:
