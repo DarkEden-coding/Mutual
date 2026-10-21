@@ -2,7 +2,7 @@
 
 ![Mutual demo: joining an event, painting availability, finding the best time, and switching themes](docs/demo.gif)
 
-Try it out at https://mutual.darkeden.org/
+Try it out at https://mutualmeet.app/
 
 A prettier, self-hosted take on When2Meet. Create an event, share a link, and everyone
 paints the times they are free (or only *if needed*). The group view shows a live
@@ -185,7 +185,7 @@ Copy `.env.example` to `.env` for Compose. Every variable is optional unless not
 | `ADMIN_TOKEN` | *(empty)* | Enables `/admin`; at least 32 characters. Rotation invalidates console sessions. |
 | `BACKUP_DIR` | `/backups` (Compose) | Read-only backup metadata directory; optional outside Compose. |
 | `TRUST_PROXY` | `cloudflare` (Compose) | `cloudflare` reads `CF-Connecting-IP` and falls back to the socket address. `none` uses the socket address. |
-| `PUBLIC_URL` | empty | Origin used in link-preview tags, e.g. `https://mutual.darkeden.org`. Empty derives it from the `Host` header, using `https` when cookies are Secure. |
+| `PUBLIC_URL` | empty | Origin used in link-preview tags, e.g. `https://mutualmeet.app`. Empty derives it from the `Host` header, using `https` when cookies are Secure. |
 | `COOKIE_SECURE` | *(empty)* | `true`/`false`. Empty means `true` in production and `false` otherwise. |
 | `NODE_ENV` | — | `production` enables static web serving and Secure cookies. Set by Docker. |
 | `WEB_DIST` | `web/dist` | Directory of the built web app. Docker sets `/app/web/dist`. |
