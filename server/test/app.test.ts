@@ -321,7 +321,7 @@ describe('SSE and runtime protections', () => {
     try {
       mkdirSync(join(dir, 'assets')); writeFileSync(join(dir, 'index.html'), '<html>Mutual</html>'); writeFileSync(join(dir, 'assets', 'app.js'), 'export {};');
       runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', production: true, webDist: dir, rateLimit: false });
-      const page = await runtime.app.request('/e/example'); expect(await page.text()).toBe('<html>Mutual</html>'); expect(page.headers.get('cache-control')).toBe('no-cache');
+      const page = await runtime.app.request('/e/example'); expect(await page.text()).toBe('<html>Mutual</html>'); expect(page.headers.get('cache-control')).toBe('no-cache'); expect(page.status).toBe(404);
       const asset = await runtime.app.request('/assets/app.js'); expect(asset.headers.get('cache-control')).toContain('immutable'); expect(asset.headers.get('content-type')).toContain('javascript');
       expect((await runtime.app.request('/assets/missing.js')).status).toBe(404);
       const api = await request('/unknown'); expect(api.status).toBe(404); expect((await api.json()).error.code).toBe('not_found');
@@ -342,6 +342,30 @@ describe('SSE and runtime protections', () => {
       expect(page).toContain('<meta property="og:image" content="https://mutual.test/og-image.png" />');
       const missing = await (await runtime.app.request('/e/missing')).text();
       expect(missing).toContain('<meta property="og:title" content="Mutual" />');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it('serves crawler files, real 404s and noindex for everything but the home page', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mutual-web-'));
+    try {
+      writeFileSync(join(dir, 'index.html'), '<head><!-- preview:start --><title>Mutual</title><!-- preview:end --></head><div id="root"><!-- home:start --><h1>Home copy</h1><!-- home:end --></div>');
+      runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', production: true, webDist: dir, rateLimit: false, publicUrl: 'https://mutual.test' });
+      const robots = await runtime.app.request('/robots.txt');
+      expect(robots.headers.get('content-type')).toContain('text/plain'); expect(await robots.text()).toContain('Sitemap: https://mutual.test/sitemap.xml');
+      const sitemap = await runtime.app.request('/sitemap.xml');
+      expect(sitemap.headers.get('content-type')).toContain('xml'); expect(await sitemap.text()).toContain('<loc>https://mutual.test/</loc>');
+      expect(await (await runtime.app.request('/llms.txt')).text()).toContain('# Mutual');
+      const home = await runtime.app.request('/'); const html = await home.text();
+      expect(home.status).toBe(200); expect(home.headers.get('x-robots-tag')).toBeNull();
+      expect(html).toContain('<link rel="canonical" href="https://mutual.test/" />'); expect(html).toContain('"@type":"FAQPage"'); expect(html).toContain('<h1>Home copy</h1>');
+      const { event } = await (await request('/events', 'POST', input)).json();
+      const live = await runtime.app.request(`/e/${event.id}`);
+      expect(live.status).toBe(200); expect(live.headers.get('x-robots-tag')).toBe('noindex');
+      const liveHtml = await live.text(); expect(liveHtml).not.toContain('canonical'); expect(liveHtml).not.toContain('Home copy'); expect(liveHtml).toContain('<div id="root"></div>');
+      for (const path of ['/e/missing', '/nope']) {
+        const missing = await runtime.app.request(path);
+        expect(missing.status).toBe(404); expect(missing.headers.get('x-robots-tag')).toBe('noindex'); expect(await missing.text()).toContain('<title>Mutual</title>');
+      }
+      const admin = await runtime.app.request('/admin'); expect(admin.status).toBe(200); expect(admin.headers.get('x-robots-tag')).toBe('noindex');
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it('uses WAL and restores events, sessions and migrations after restart', async () => {

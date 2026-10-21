@@ -1,8 +1,9 @@
-import { Link, Outlet } from 'react-router';
+import { Link, Outlet, useLocation } from 'react-router';
 import { IconLogo } from './Icons';
 import { ThemePicker } from './ThemePicker';
 
 export function Layout() {
+  const { pathname } = useLocation();
   return (
     <div className="m-app">
       <header className="m-header">
@@ -21,7 +22,15 @@ export function Layout() {
       <main className="m-main">
         <Outlet />
       </main>
-      <footer className="m-footer">Find a time that works for everyone.</footer>
+      <footer className="m-footer">
+        {pathname === '/' ? (
+          'Find a time that works for everyone.'
+        ) : (
+          <>
+            Made with Mutual · <Link to="/">Create your own free scheduling poll</Link>
+          </>
+        )}
+      </footer>
     </div>
   );
 }

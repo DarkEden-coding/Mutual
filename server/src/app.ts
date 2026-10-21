@@ -9,7 +9,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { z } from 'zod';
 import { adminMetrics } from './admin.js';
-import { previewTags, withPreview } from './preview.js';
+import { llmsTxt, previewTags, robotsTxt, sitemapXml, withoutHomeSnapshot, withPreview } from './preview.js';
 import { openDatabase, statements, eventDTO, participantDTO, type EventRecord, type ParticipantRecord } from './database.js';
 import { createSchema, eventFields, patchSchema, sessionSchema, availabilitySchema, adminSchema, checkEvent, sortDays, totalSlots, remap, validSlug, expiryFor, extendExpiry, canExtend, type EventDTO } from './model.js';
 import { equal, tokenHash, hashPassword, verifyPassword, sessionSecret, signParticipant, readParticipant, signConsole, readConsole, clientKey, RateLimiter, type Bucket } from './security.js';
@@ -313,17 +313,30 @@ export function createApp(options: Options = {}) {
     return c.newResponse(body, 200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no' });
   });
   const mime: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.webp': 'image/webp', '.txt': 'text/plain; charset=utf-8' };
-  // Unfurlers need absolute URLs. Behind the tunnel the app only sees plain HTTP, so without PUBLIC_URL
+  // Unfurlers and crawlers need absolute URLs. Behind the tunnel the app only sees plain HTTP, so without PUBLIC_URL
   // the scheme follows whether cookies are marked Secure, which is true exactly when served over HTTPS.
-  const pagePreview = (c: Context) => {
-    const origin = publicUrl || `${cookieSecure ? 'https' : 'http'}://${c.req.header('host') ?? 'localhost'}`;
+  const originOf = (c: Context) => publicUrl || `${cookieSecure ? 'https' : 'http'}://${c.req.header('host') ?? 'localhost'}`;
+  const crawlerFiles: Record<string, [string, (origin: string) => string]> = {
+    '/robots.txt': ['text/plain; charset=utf-8', robotsTxt],
+    '/sitemap.xml': ['application/xml; charset=utf-8', sitemapXml],
+    '/llms.txt': ['text/plain; charset=utf-8', llmsTxt],
+  };
+  // Only the home page is meant for search results. Event pages hold people's private polls, so they get the
+  // SPA with noindex, and unknown routes get the SPA's not-found page with a real 404 instead of a soft 404.
+  const page = (c: Context) => {
     const id = /^\/e\/([^/]+)\/?$/.exec(c.req.path)?.[1];
     let event: EventDTO | undefined;
     if (id) try { event = eventDTO(findEvent(decodeURIComponent(id))); } catch { /* unknown or expired: generic preview */ }
-    return previewTags(origin, c.req.path, event);
+    const known = c.req.path === '/' || c.req.path === '/admin' || !!event;
+    return { tags: previewTags(originOf(c), c.req.path, event), status: known ? 200 as const : 404 as const, index: c.req.path === '/' };
   };
   app.get('*', async c => {
     if (!production || c.req.path === '/api' || c.req.path.startsWith('/api/')) throw new ApiError(404, 'not_found', 'Not found');
+    const crawlerFile = crawlerFiles[c.req.path];
+    if (crawlerFile) {
+      c.header('Content-Type', crawlerFile[0]); c.header('Cache-Control', 'public, max-age=3600');
+      return c.body(crawlerFile[1](originOf(c)));
+    }
     let path: string;
     try { path = resolve(webDist, `.${decodeURIComponent(c.req.path)}`); } catch { throw new ApiError(404, 'not_found', 'Not found'); }
     if (path !== webDist && !path.startsWith(webDist + sep)) throw new ApiError(404, 'not_found', 'Not found');
@@ -333,7 +346,11 @@ export function createApp(options: Options = {}) {
       const content = await readFile(path);
       c.header('Content-Type', mime[extname(path)] ?? 'application/octet-stream');
       c.header('Cache-Control', c.req.path.startsWith('/assets/') && extname(path) !== '.html' ? 'public, max-age=31536000, immutable' : 'no-cache');
-      return path === resolve(webDist, 'index.html') ? c.body(withPreview(content.toString('utf8'), pagePreview(c))) : c.body(content);
+      if (path !== resolve(webDist, 'index.html')) return c.body(content);
+      const { tags, status, index } = page(c);
+      const html = content.toString('utf8');
+      if (!index) c.header('X-Robots-Tag', 'noindex');
+      return c.body(withPreview(index ? html : withoutHomeSnapshot(html), tags), status);
     } catch { throw new ApiError(404, 'not_found', 'Web build not found'); }
   });
   app.notFound(c => c.json({ error: { code: 'not_found', message: 'Not found' } }, 404));

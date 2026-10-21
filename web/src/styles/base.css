@@ -408,3 +408,9 @@ textarea {
     scroll-behavior: auto !important;
   }
 }
+
+/* Build-time copy of the home page text inside #root for crawlers that do not run JavaScript (src/seo.tsx).
+   React replaces it on mount, so visitors never see it. */
+.m-seo-snapshot {
+  display: none;
+}
