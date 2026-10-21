@@ -34,10 +34,16 @@ export function createApp(options: Options = {}) {
   const streamLimits = options.streamLimits ?? { perIp: 20, perEvent: 300, total: 2000 };
   const streamsByIp = new Map<string, number>();
   const app = new Hono<{ Variables: { ip: string } }>();
-  const subscribers = new Map<string, Set<{ send: (event: string, data: unknown) => void; close: () => void }>>();
+  const subscribers = new Map<string, Set<{ send: (chunk: Uint8Array) => void; close: () => void }>>();
+  const encoder = new TextEncoder();
+  const heartbeatChunk = encoder.encode(': heartbeat\n\n'), connectedChunk = encoder.encode(': connected\n\n');
   function broadcast(id: string, event: string, data: unknown) {
-    for (const subscriber of [...(subscribers.get(id) ?? [])]) {
-      subscriber.send(event, data);
+    const set = subscribers.get(id);
+    if (!set) return;
+    // Encode once and share the chunk: an event payload carries every participant's availability.
+    const chunk = encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    for (const subscriber of [...set]) {
+      subscriber.send(chunk);
       if (event === 'deleted') subscriber.close();
     }
   }
@@ -226,23 +232,22 @@ export function createApp(options: Options = {}) {
     if ((streamsByIp.get(ip) ?? 0) >= streamLimits.perIp || (subscribers.get(id)?.size ?? 0) >= streamLimits.perEvent || total >= streamLimits.total) {
       throw new ApiError(429, 'rate_limited', 'Too many live update connections', 30);
     }
-    const encoder = new TextEncoder();
     let cleanup = () => {};
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
         let closed = false;
         const close = () => { if (closed) return; closed = true; cleanup(); controller.close(); };
-        const enqueue = (text: string) => {
+        const enqueue = (chunk: Uint8Array) => {
           if (closed) return;
           if ((controller.desiredSize ?? 0) < -64) { close(); return; }
-          controller.enqueue(encoder.encode(text));
+          controller.enqueue(chunk);
         };
-        const subscriber = { send: (event: string, data: unknown) => enqueue(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`), close };
+        const subscriber = { send: enqueue, close };
         const set = subscribers.get(id) ?? new Set();
         set.add(subscriber); subscribers.set(id, set);
         streamsByIp.set(ip, (streamsByIp.get(ip) ?? 0) + 1);
         let released = false;
-        const heartbeat = setInterval(() => enqueue(': heartbeat\n\n'), 20_000);
+        const heartbeat = setInterval(() => enqueue(heartbeatChunk), 20_000);
         heartbeat.unref();
         cleanup = () => {
           closed = true; clearInterval(heartbeat); set.delete(subscriber); if (!set.size) subscribers.delete(id); c.req.raw.signal.removeEventListener('abort', close);
@@ -252,7 +257,7 @@ export function createApp(options: Options = {}) {
           if (count > 0) streamsByIp.set(ip, count); else streamsByIp.delete(ip);
         };
         c.req.raw.signal.addEventListener('abort', close, { once: true });
-        if (c.req.raw.signal.aborted) close(); else enqueue(': connected\n\n');
+        if (c.req.raw.signal.aborted) close(); else enqueue(connectedChunk);
       },
       cancel() { cleanup(); },
     });

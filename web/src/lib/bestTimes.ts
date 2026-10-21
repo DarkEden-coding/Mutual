@@ -96,39 +96,42 @@ export function findBestBlocks(
   const total = participants.length;
   if (total === 0 || grid.totalSlots === 0) return [];
 
+  // Read people's availability strings directly instead of building a per-slot signature of every
+  // participant (up to slots x people characters, rebuilt on every paint stroke). Missing chars read as '0'.
+  const code = (pi: number, slot: number) => participants[pi].availability.charCodeAt(slot) || 48;
   const slotScore = new Float32Array(grid.totalSlots);
-  const slotSig: string[] = new Array(grid.totalSlots);
   for (let slot = 0; slot < grid.totalSlots; slot++) {
-    let sig = '';
     let sc = 0;
-    for (const p of participants) {
-      const ch = p.availability[slot] ?? '0';
-      sig += ch;
-      if (ch === '1') sc += 1;
-      else if (ch === '2') sc += 0.5;
+    for (let pi = 0; pi < total; pi++) {
+      const ch = code(pi, slot);
+      if (ch === 49) sc += 1;
+      else if (ch === 50) sc += 0.5;
     }
-    slotSig[slot] = sig;
     slotScore[slot] = sc;
   }
+  const sameSet = (x: number, y: number) => {
+    for (let pi = 0; pi < total; pi++) if (code(pi, x) !== code(pi, y)) return false;
+    return true;
+  };
 
   // distinct positive score levels, best first
   const levelSet = new Set<number>();
   for (let slot = 0; slot < grid.totalSlots; slot++) if (slotScore[slot] > 0) levelSet.add(slotScore[slot]);
   const thresholds = [...levelSet].sort((a, b) => b - a).slice(0, levels);
 
-  const found = new Map<string, BestBlock>();
+  // Candidates stay lightweight (numeric key, no slot list) until they make the final cut.
+  type Candidate = { col: number; rowStart: number; rowEnd: number; available: number; ifNeeded: number; score: number };
+  const found = new Map<number, Candidate>();
   const consider = (c: number, r0: number, r1: number) => {
-    const id = `${c}:${r0}-${r1}`;
-    if (found.has(id)) return;
-    const slots: number[] = [];
-    for (let k = r0; k <= r1; k++) slots.push(grid.cells[k * grid.cols + c]);
+    const key = (c * grid.nrows + r0) * grid.nrows + r1;
+    if (found.has(key)) return;
     let a = 0;
     let i = 0;
     for (let pi = 0; pi < total; pi++) {
       let all = true;
       let attends = true;
-      for (const slot of slots) {
-        const ch = slotSig[slot].charCodeAt(pi);
+      for (let k = r0; k <= r1; k++) {
+        const ch = code(pi, grid.cells[k * grid.cols + c]);
         if (ch !== 49) all = false;
         if (ch !== 49 && ch !== 50) {
           attends = false;
@@ -140,19 +143,7 @@ export function findBestBlocks(
       else i++;
     }
     if (a + i === 0) return;
-    found.set(id, {
-      id,
-      col: c,
-      rowStart: r0,
-      rowEnd: r1,
-      startMinute: grid.rows[r0].minute,
-      endMinute: grid.rows[r1].minute + grid.slotMinutes,
-      slots,
-      available: a,
-      ifNeeded: i,
-      total,
-      score: a + 0.5 * i,
-    });
+    found.set(key, { col: c, rowStart: r0, rowEnd: r1, available: a, ifNeeded: i, score: a + 0.5 * i });
   };
 
   for (let c = 0; c < grid.cols; c++) {
@@ -175,7 +166,7 @@ export function findBestBlocks(
       // 1. identical-set runs
       let s0 = r;
       for (let k = r + 1; k <= end + 1; k++) {
-        if (k > end || slotSig[slotAt(k)] !== slotSig[slotAt(s0)]) {
+        if (k > end || !sameSet(slotAt(k), slotAt(s0))) {
           consider(c, s0, k - 1);
           s0 = k;
         }
@@ -197,12 +188,26 @@ export function findBestBlocks(
   }
 
   const ranked = [...found.values()].sort(
-    (x, y) => y.score - x.score || y.slots.length - x.slots.length || x.col - y.col || x.rowStart - y.rowStart,
+    (x, y) => y.score - x.score || y.rowEnd - y.rowStart - (x.rowEnd - x.rowStart) || x.col - y.col || x.rowStart - y.rowStart,
   );
   const out: BestBlock[] = [];
   for (const b of ranked) {
     if (out.some((o) => o.col === b.col && b.rowStart >= o.rowStart && b.rowEnd <= o.rowEnd)) continue;
-    out.push(b);
+    const slots: number[] = [];
+    for (let k = b.rowStart; k <= b.rowEnd; k++) slots.push(grid.cells[k * grid.cols + b.col]);
+    out.push({
+      id: `${b.col}:${b.rowStart}-${b.rowEnd}`,
+      col: b.col,
+      rowStart: b.rowStart,
+      rowEnd: b.rowEnd,
+      startMinute: grid.rows[b.rowStart].minute,
+      endMinute: grid.rows[b.rowEnd].minute + grid.slotMinutes,
+      slots,
+      available: b.available,
+      ifNeeded: b.ifNeeded,
+      total,
+      score: b.score,
+    });
     if (out.length >= limit) break;
   }
   return out;
