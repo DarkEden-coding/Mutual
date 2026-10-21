@@ -9,6 +9,9 @@ import { NotFound } from './pages/NotFound';
 // Dev-only theme kitchen sink; tree-shaken out of production builds.
 const KitchenSink = import.meta.env.DEV ? lazy(() => import('./pages/KitchenSink').then((m) => ({ default: m.KitchenSink }))) : null;
 
+// Lazy so regular visitors never download the dashboard (or its stylesheet).
+const Admin = lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })));
+
 export function App() {
   return (
     <ToastProvider>
@@ -17,6 +20,14 @@ export function App() {
           <Route element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="e/:id" element={<EventPage />} />
+            <Route
+              path="admin"
+              element={
+                <Suspense fallback={null}>
+                  <Admin />
+                </Suspense>
+              }
+            />
             {KitchenSink && (
               <Route
                 path="themes"

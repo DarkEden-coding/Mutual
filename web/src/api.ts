@@ -170,6 +170,63 @@ export const api = {
     request<{ participant: ParticipantDTO }>('PUT', `/events/${enc(id)}/availability`, { availability }),
 };
 
+/** Read-only site admin dashboard (see /tmp contract; routes under /api/admin). */
+export interface AdminStats {
+  generatedAt: string;
+  server: {
+    version: string;
+    node: string;
+    startedAt: string;
+    uptimeSeconds: number;
+    memory: { rss: number; heapUsed: number; limit: number | null };
+  };
+  events: {
+    total: number;
+    active: number;
+    createdLast30Days: number;
+    byMode: { dates: number; weekdays: number };
+    expiringWithin7Days: number;
+  };
+  people: { unique: number; entries: number; withPassword: number; responded: number; avgPerEvent: number };
+  storage: {
+    databaseBytes: number;
+    walBytes: number;
+    freeBytes: number;
+    tables: { name: string; bytes: number }[];
+    volume: { totalBytes: number; freeBytes: number } | null;
+  };
+  live: { streams: number; streamLimit: number; eventsWithViewers: number };
+  topEvents: { id: string; title: string; participants: number; live: number; updatedAt: string; expiresAt: string }[];
+  rateLimits: {
+    throttledLastHour: number;
+    passwordLockoutsLastHour: number;
+    trackedClients: number;
+    clients: { key: string; scope: 'all' | 'auth' | 'admin'; tokens: number; capacity: number; blocked: boolean }[];
+  };
+  backups: {
+    configured: boolean;
+    snapshots: { name: string; bytes: number; hasSecret: boolean; modifiedAt: string }[];
+    count: number;
+    totalBytes: number;
+    latestAt: string | null;
+  };
+  history: AdminHistoryDay[];
+}
+
+export interface AdminHistoryDay {
+  day: string;
+  activeEvents: number | null;
+  uniquePeople: number | null;
+  eventsCreated: number;
+  participantsJoined: number;
+  availabilitySaves: number;
+  throttled: number;
+}
+
+export const adminLogin = (token: string) => request<{ ok: true }>('POST', '/admin/login', { token });
+export const adminLogout = () => request<void>('POST', '/admin/logout');
+export const adminStats = (signal?: AbortSignal) => request<AdminStats>('GET', '/admin/stats', undefined, signal);
+
 export function streamUrl(id: string): string {
   return `/api/events/${enc(id)}/stream`;
 }
