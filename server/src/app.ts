@@ -8,6 +8,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { bodyLimit } from 'hono/body-limit';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { z } from 'zod';
+import { previewTags, withPreview } from './preview.js';
 import { openDatabase, statements, eventDTO, participantDTO, type EventRecord, type ParticipantRecord } from './database.js';
 import { createSchema, eventFields, patchSchema, sessionSchema, availabilitySchema, adminSchema, checkEvent, sortDays, totalSlots, remap, validSlug, expiryFor, extendExpiry, canExtend, type EventDTO } from './model.js';
 import { equal, tokenHash, hashPassword, verifyPassword, sessionSecret, signParticipant, readParticipant, clientKey, RateLimiter, type Bucket } from './security.js';
@@ -16,7 +17,7 @@ class ApiError extends Error {
   constructor(public status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429, public code: string, message: string, public retryAfter = 6) { super(message); }
 }
 interface StreamLimits { perIp: number; perEvent: number; total: number }
-interface Options { databasePath?: string; dataDir?: string; secret?: string; production?: boolean; webDist?: string; trustProxy?: string; rateLimit?: boolean; streamLimits?: StreamLimits }
+interface Options { databasePath?: string; dataDir?: string; secret?: string; production?: boolean; webDist?: string; trustProxy?: string; publicUrl?: string; rateLimit?: boolean; streamLimits?: StreamLimits }
 export function createApp(options: Options = {}) {
   const production = options.production ?? process.env.NODE_ENV === 'production';
   const cookieSecureEnv = process.env.COOKIE_SECURE;
@@ -34,6 +35,7 @@ export function createApp(options: Options = {}) {
   const streamLimits = options.streamLimits ?? { perIp: 20, perEvent: 300, total: 2000 };
   const streamsByIp = new Map<string, number>();
   const app = new Hono<{ Variables: { ip: string } }>();
+  const publicUrl = (options.publicUrl ?? process.env.PUBLIC_URL ?? '').replace(/\/+$/, '');
   const subscribers = new Map<string, Set<{ send: (chunk: Uint8Array) => void; close: () => void }>>();
   const encoder = new TextEncoder();
   const heartbeatChunk = encoder.encode(': heartbeat\n\n'), connectedChunk = encoder.encode(': connected\n\n');
@@ -278,6 +280,15 @@ export function createApp(options: Options = {}) {
     return c.newResponse(body, 200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no' });
   });
   const mime: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.webp': 'image/webp', '.txt': 'text/plain; charset=utf-8' };
+  // Unfurlers need absolute URLs. Behind the tunnel the app only sees plain HTTP, so without PUBLIC_URL
+  // the scheme follows whether cookies are marked Secure, which is true exactly when served over HTTPS.
+  const pagePreview = (c: Context) => {
+    const origin = publicUrl || `${cookieSecure ? 'https' : 'http'}://${c.req.header('host') ?? 'localhost'}`;
+    const id = /^\/e\/([^/]+)\/?$/.exec(c.req.path)?.[1];
+    let event: EventDTO | undefined;
+    if (id) try { event = eventDTO(findEvent(decodeURIComponent(id))); } catch { /* unknown or expired: generic preview */ }
+    return previewTags(origin, c.req.path, event);
+  };
   app.get('*', async c => {
     if (!production || c.req.path === '/api' || c.req.path.startsWith('/api/')) throw new ApiError(404, 'not_found', 'Not found');
     let path: string;
@@ -289,7 +300,7 @@ export function createApp(options: Options = {}) {
       const content = await readFile(path);
       c.header('Content-Type', mime[extname(path)] ?? 'application/octet-stream');
       c.header('Cache-Control', c.req.path.startsWith('/assets/') && extname(path) !== '.html' ? 'public, max-age=31536000, immutable' : 'no-cache');
-      return c.body(content);
+      return path === resolve(webDist, 'index.html') ? c.body(withPreview(content.toString('utf8'), pagePreview(c))) : c.body(content);
     } catch { throw new ApiError(404, 'not_found', 'Web build not found'); }
   });
   app.notFound(c => c.json({ error: { code: 'not_found', message: 'Not found' } }, 404));

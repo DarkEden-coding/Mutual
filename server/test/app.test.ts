@@ -328,6 +328,22 @@ describe('SSE and runtime protections', () => {
       const created = await request('/events', 'POST', input); expect(created.headers.get('set-cookie')).toContain('Secure');
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+  it('serves link-preview tags with the event title in index.html', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mutual-web-'));
+    try {
+      writeFileSync(join(dir, 'index.html'), '<head><!-- preview:start --><title>Mutual</title><!-- preview:end --></head>');
+      runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', production: true, webDist: dir, rateLimit: false, publicUrl: 'https://mutual.test/' });
+      const { event } = await (await request('/events', 'POST', { ...input, title: 'Team <sync>', description: 'Pick "your" slots' })).json();
+      const page = await (await runtime.app.request(`/e/${event.id}`)).text();
+      expect(page).toContain('<title>Team &#60;sync&#62; · Mutual</title>');
+      expect(page).toContain('<meta property="og:title" content="Team &#60;sync&#62;" />');
+      expect(page).toContain('<meta property="og:description" content="Pick &#34;your&#34; slots" />');
+      expect(page).toContain(`<meta property="og:url" content="https://mutual.test/e/${event.id}" />`);
+      expect(page).toContain('<meta property="og:image" content="https://mutual.test/og-image.png" />');
+      const missing = await (await runtime.app.request('/e/missing')).text();
+      expect(missing).toContain('<meta property="og:title" content="Mutual" />');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
   it('uses WAL and restores events, sessions and migrations after restart', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mutual-db-'));
     try {

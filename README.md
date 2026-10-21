@@ -174,6 +174,7 @@ Copy `.env.example` to `.env` for Compose. Every variable is optional unless not
 | `DATA_DIR` | `./data` | Database and secret directory. Compose fixes it at `/data`. |
 | `SESSION_SECRET` | *(empty)* | Signs participant cookies. Empty generates one and saves it to `DATA_DIR/secret`. |
 | `TRUST_PROXY` | `cloudflare` (Compose) | `cloudflare` reads `CF-Connecting-IP` and falls back to the socket address. `none` uses the socket address. |
+| `PUBLIC_URL` | empty | Origin used in link-preview tags, e.g. `https://mutual.darkeden.org`. Empty derives it from the `Host` header, using `https` when cookies are Secure. |
 | `COOKIE_SECURE` | *(empty)* | `true`/`false`. Empty means `true` in production and `false` otherwise. |
 | `NODE_ENV` | — | `production` enables static web serving and Secure cookies. Set by Docker. |
 | `WEB_DIST` | `web/dist` | Directory of the built web app. Docker sets `/app/web/dist`. |
