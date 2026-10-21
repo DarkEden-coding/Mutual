@@ -16,6 +16,10 @@ export interface EventDTO {
   timezone: string;
   createdAt: string;
   updatedAt: string;
+  /** Months kept after the last date (1 to 6), chosen at creation. */
+  keepMonths: number;
+  /** When the server deletes the event and its responses (ISO 8601). */
+  expiresAt: string;
 }
 
 export interface ParticipantDTO {
@@ -40,6 +44,7 @@ export type ApiErrorCode =
   | 'forbidden'
   | 'rate_limited'
   | 'too_many_participants'
+  | 'too_early'
   | 'network'
   | 'unknown';
 
@@ -65,6 +70,7 @@ export interface CreateEventInput {
   slotMinutes: SlotMinutes;
   timezone: string;
   slug?: string;
+  keepMonths?: number;
 }
 
 export interface UpdateEventInput {
@@ -144,6 +150,8 @@ export const api = {
 
   updateEvent: (id: string, patch: UpdateEventInput) =>
     request<{ event: EventDTO; participants: ParticipantDTO[] }>('PATCH', `/events/${enc(id)}`, patch),
+
+  extendEvent: (id: string) => request<{ event: EventDTO }>('POST', `/events/${enc(id)}/extend`),
 
   deleteEvent: (id: string) => request<void>('DELETE', `/events/${enc(id)}`),
 

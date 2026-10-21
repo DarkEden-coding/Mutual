@@ -22,7 +22,7 @@ export const eventFields = z.object({
   timezone,
 }).strict();
 export type EventInput = z.infer<typeof eventFields>;
-export interface EventDTO extends EventInput { id: string; createdAt: string; updatedAt: string }
+export interface EventDTO extends EventInput { id: string; createdAt: string; updatedAt: string; keepMonths: number; expiresAt: string }
 export interface ParticipantDTO { id: string; name: string; hasPassword: boolean; availability: string; updatedAt: string }
 export const checkEvent = (event: EventInput) => {
   const days = event.mode === 'dates' ? event.dates : event.weekdays;
@@ -30,7 +30,10 @@ export const checkEvent = (event: EventInput) => {
     (event.mode === 'dates' ? event.weekdays.length === 0 : event.dates.length === 0) &&
     event.startMinute < event.endMinute && event.startMinute % event.slotMinutes === 0 && event.endMinute % event.slotMinutes === 0;
 };
-export const createSchema = eventFields.extend({ slug: z.string().refine(validSlug, 'Invalid or reserved slug').optional() }).refine(checkEvent, 'Invalid days or hours');
+export const createSchema = eventFields.extend({
+  slug: z.string().refine(validSlug, 'Invalid or reserved slug').optional(),
+  keepMonths: z.number().int().min(1).max(6).default(1),
+}).refine(checkEvent, 'Invalid days or hours');
 export const patchSchema = z.object({
   title: eventFields.shape.title.optional(), description: eventFields.shape.description.removeDefault().optional(),
   dates: eventFields.shape.dates.removeDefault().optional(), weekdays: eventFields.shape.weekdays.removeDefault().optional(),
@@ -45,6 +48,25 @@ export const totalSlots = (event: EventInput) => daysOf(event).length * (event.e
 export function sortDays<T extends EventInput>(event: T): T {
   return { ...event, dates: [...event.dates].sort(), weekdays: [...event.weekdays].sort((a, b) => a - b) };
 }
+/** Anyone may extend an event by one month once it is this close to deletion. */
+export const extendWindowDays = 10;
+/** UTC midnight of `day` (YYYY-MM-DD) plus whole months, clamped to the end of shorter months. */
+function addMonths(day: string, months: number) {
+  const [y, m, d] = day.split('-').map(Number);
+  const length = new Date(Date.UTC(y, m - 1 + months + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m - 1 + months, Math.min(d, length)));
+}
+/**
+ * Events are deleted at the end of the day `months` after their last date. Weekday events have no
+ * last date, and past dates would expire at once, so both count from today instead.
+ */
+export function expiryFor(event: EventInput, months: number, now = new Date()): string {
+  const today = now.toISOString().slice(0, 10);
+  const last = event.mode === 'dates' ? event.dates.reduce((a, b) => (a > b ? a : b), today) : today;
+  return new Date(addMonths(last, months).getTime() + 86_400_000).toISOString();
+}
+export const extendExpiry = (expiresAt: string) => addMonths(expiresAt.slice(0, 10), 1).toISOString();
+export const canExtend = (expiresAt: string, now = Date.now()) => Date.parse(expiresAt) - now <= extendWindowDays * 86_400_000;
 // Merging slots keeps the least committed answer: unavailable < if needed < available.
 const commitment: Record<string, number> = { '0': 0, '2': 1, '1': 2 };
 /**

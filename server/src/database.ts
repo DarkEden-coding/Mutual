@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
-import type { EventDTO, ParticipantDTO } from './model.js';
-export interface EventRecord { id: string; dto: string; admin_hash: string; updated_at: string }
+import { expiryFor, type EventDTO, type ParticipantDTO } from './model.js';
+export interface EventRecord { id: string; dto: string; admin_hash: string; updated_at: string; expires_at: string }
 export interface ParticipantRecord { id: string; event_id: string; name: string; name_key: string; password_salt: string | null; password_hash: string | null; availability: string; updated_at: string }
 export const eventDTO = (row: EventRecord): EventDTO => JSON.parse(row.dto);
 export const participantDTO = (row: ParticipantRecord): ParticipantDTO => ({ id: row.id, name: row.name, hasPassword: row.password_hash !== null, availability: row.availability, updatedAt: row.updated_at });
@@ -11,7 +11,7 @@ export function openDatabase(filename: string) {
   db.pragma('busy_timeout = 5000');
   db.transaction(() => {
     const version = db.pragma('user_version', { simple: true }) as number;
-    if (version > 2) throw new Error('Database schema is newer than this server');
+    if (version > 3) throw new Error('Database schema is newer than this server');
     if (version < 1) {
       db.exec(`
         CREATE TABLE events (id TEXT PRIMARY KEY COLLATE NOCASE, dto TEXT NOT NULL, admin_hash TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -30,16 +30,32 @@ export function openDatabase(filename: string) {
         PRAGMA user_version = 2;
       `);
     }
+    if (version < 3) {
+      // Events now carry their own deletion date. Existing ones get the default keep-alive, and at
+      // least a month from now, so the upgrade never deletes anything straight away.
+      db.exec('ALTER TABLE events ADD COLUMN expires_at TEXT NOT NULL DEFAULT \'\'');
+      const update = db.prepare('UPDATE events SET dto = ?, expires_at = ? WHERE id = ?');
+      for (const row of db.prepare('SELECT id, dto FROM events').all() as EventRecord[]) {
+        const event: EventDTO = { ...JSON.parse(row.dto), keepMonths: 1 };
+        event.expiresAt = expiryFor(event, 1);
+        update.run(JSON.stringify(event), event.expiresAt, row.id);
+      }
+      db.exec(`
+        DROP INDEX events_updated;
+        CREATE INDEX events_expires ON events(expires_at);
+        PRAGMA user_version = 3;
+      `);
+    }
   })();
   return db;
 }
 export function statements(db: Database.Database) {
   return {
     event: db.prepare('SELECT * FROM events WHERE id = ?'),
-    insertEvent: db.prepare('INSERT INTO events (id, dto, admin_hash, updated_at) VALUES (?, ?, ?, ?)'),
-    updateEvent: db.prepare('UPDATE events SET dto = ?, updated_at = ? WHERE id = ?'),
+    insertEvent: db.prepare('INSERT INTO events (id, dto, admin_hash, updated_at, expires_at) VALUES (?, ?, ?, ?, ?)'),
+    updateEvent: db.prepare('UPDATE events SET dto = ?, updated_at = ?, expires_at = ? WHERE id = ?'),
     deleteEvent: db.prepare('DELETE FROM events WHERE id = ?'),
-    staleEvents: db.prepare('SELECT id FROM events WHERE updated_at < ?'),
+    expiredEvents: db.prepare('SELECT id FROM events WHERE expires_at <= ?'),
     participants: db.prepare('SELECT * FROM participants WHERE event_id = ? ORDER BY rowid'),
     participant: db.prepare('SELECT * FROM participants WHERE event_id = ? AND id = ?'),
     name: db.prepare('SELECT * FROM participants WHERE event_id = ? AND name_key = ?'),

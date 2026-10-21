@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { createApp } from '../src/app.js';
 import { clientKey, sessionSecret } from '../src/security.js';
 
@@ -21,7 +22,7 @@ async function session(id: string, name = 'Alice', password?: string) {
   expect(res.status).toBe(200);
   return { ...(await res.json()), auth: cookie(res) };
 }
-beforeEach(() => { runtime = createApp({ databasePath: ':memory:', secret: 'test-secret', rateLimit: false, ttlDays: 0 }); });
+beforeEach(() => { runtime = createApp({ databasePath: ':memory:', secret: 'test-secret', rateLimit: false }); });
 afterEach(() => { runtime.close(); vi.useRealTimers(); vi.unstubAllEnvs(); });
 
 describe('events and slugs', () => {
@@ -125,6 +126,77 @@ describe('participants and authentication', () => {
   });
 });
 
+describe('expiry', () => {
+  const at = (iso: string) => vi.useFakeTimers({ toFake: ['Date'], now: new Date(iso) });
+  it('deletes events a chosen number of months after their last date, counting from today when that is later', async () => {
+    at('2026-10-01T12:00:00Z');
+    expect((await create()).event).toMatchObject({ keepMonths: 1, expiresAt: '2026-11-16T00:00:00.000Z' });
+    expect((await create({ keepMonths: 6, dates: ['2026-08-31'] })).event.expiresAt).toBe('2027-04-02T00:00:00.000Z');
+    expect((await create({ keepMonths: 1, dates: ['2027-01-31'] })).event.expiresAt).toBe('2027-03-01T00:00:00.000Z');
+    expect((await create({ mode: 'weekdays', dates: [], weekdays: [1], keepMonths: 2 })).event.expiresAt).toBe('2026-12-02T00:00:00.000Z');
+    for (const keepMonths of [0, 7, 1.5, '3']) expect((await request('/events', 'POST', { ...input, keepMonths })).status).toBe(400);
+  });
+  it('hides and housekeeps expired events with cascade, keeping the rest', async () => {
+    at('2026-10-01T12:00:00Z');
+    const old = await create(); await session(old.event.id); const later = await create({ keepMonths: 2 });
+    at('2026-11-16T00:00:00Z');
+    expect((await request(`/events/${old.event.id}`)).status).toBe(404);
+    expect(runtime.db.prepare('SELECT count(*) AS n FROM events').get()).toEqual({ n: 2 });
+    runtime.housekeep();
+    expect(runtime.db.prepare('SELECT count(*) AS n FROM events').get()).toEqual({ n: 1 });
+    expect(runtime.db.prepare('SELECT count(*) AS n FROM participants').get()).toEqual({ n: 0 });
+    expect((await request(`/events/${later.event.id}`)).status).toBe(200);
+  });
+  it('extends by a month only within 10 days of deletion, without touching updatedAt, and broadcasts it', async () => {
+    at('2026-10-01T12:00:00Z');
+    const { event } = await create();
+    const early = await request(`/events/${event.id}/extend`, 'POST');
+    expect(early.status).toBe(409); expect((await early.json()).error.code).toBe('too_early');
+    at('2026-11-06T00:00:00Z');
+    const res = await runtime.app.request(`/api/events/${event.id}/stream`), reader = res.body!.getReader();
+    await reader.read();
+    const extended = await request(`/events/${event.id}/extend`, 'POST');
+    expect(extended.status).toBe(200);
+    const body = await extended.json();
+    expect(body.event.expiresAt).toBe('2026-12-16T00:00:00.000Z'); expect(body.event.updatedAt).toBe(event.updatedAt);
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain('"expiresAt":"2026-12-16T00:00:00.000Z"');
+    await reader.cancel();
+    expect((await request(`/events/${event.id}/extend`, 'POST')).status).toBe(409);
+    expect((await (await request(`/events/${event.id}`)).json()).event.expiresAt).toBe('2026-12-16T00:00:00.000Z');
+  });
+  it('pushes deletion out when an edit moves the last date later, never earlier', async () => {
+    at('2026-10-01T12:00:00Z');
+    const { event, auth } = await create({ keepMonths: 2 });
+    const later = await (await request(`/events/${event.id}`, 'PATCH', { dates: ['2026-10-13', '2026-12-31'] }, auth)).json();
+    expect(later.event.expiresAt).toBe('2027-03-01T00:00:00.000Z');
+    const earlier = await (await request(`/events/${event.id}`, 'PATCH', { dates: ['2026-10-13'] }, auth)).json();
+    expect(earlier.event.expiresAt).toBe('2027-03-01T00:00:00.000Z');
+  });
+  it('gives events from older databases the default keep-alive, at least a month from now', () => {
+    at('2026-10-01T12:00:00Z');
+    const dir = mkdtempSync(join(tmpdir(), 'mutual-migrate-'));
+    try {
+      const db = new Database(join(dir, 'mutual.sqlite'));
+      db.exec(`CREATE TABLE events (id TEXT PRIMARY KEY COLLATE NOCASE, dto TEXT NOT NULL, admin_hash TEXT NOT NULL, updated_at TEXT NOT NULL);
+        CREATE TABLE participants (id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE, name TEXT NOT NULL, name_key TEXT NOT NULL,
+          password_salt TEXT, password_hash TEXT, availability TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(event_id, name_key));
+        CREATE INDEX events_updated ON events(updated_at); CREATE INDEX participants_event ON participants(event_id);
+        CREATE TABLE rate_limits (key TEXT PRIMARY KEY, tokens REAL NOT NULL, updated INTEGER NOT NULL); PRAGMA user_version = 2;`);
+      const insert = db.prepare('INSERT INTO events VALUES (?, ?, ?, ?)');
+      insert.run('past-event', JSON.stringify({ ...input, dates: ['2025-01-01'], id: 'past-event' }), 'x', '2025-01-01T00:00:00.000Z');
+      insert.run('future-event', JSON.stringify({ ...input, dates: ['2026-12-25'], id: 'future-event' }), 'x', '2026-09-01T00:00:00.000Z');
+      db.close();
+      runtime.close(); runtime = createApp({ dataDir: dir, secret: 'test', rateLimit: false });
+      const rows = runtime.db.prepare('SELECT id, dto, expires_at FROM events ORDER BY id').all() as { id: string; dto: string; expires_at: string }[];
+      expect(rows.map(r => [r.id, r.expires_at, JSON.parse(r.dto).expiresAt, JSON.parse(r.dto).keepMonths])).toEqual([
+        ['future-event', '2027-01-26T00:00:00.000Z', '2027-01-26T00:00:00.000Z', 1],
+        ['past-event', '2026-11-02T00:00:00.000Z', '2026-11-02T00:00:00.000Z', 1],
+      ]);
+      expect(runtime.db.pragma('user_version', { simple: true })).toBe(3);
+    } finally { runtime.close(); rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
 describe('admin and remapping', () => {
   it('claims admin, protects edits and deletes, rejects forged admin cookies', async () => {
     const { event, adminToken } = await create();
@@ -208,7 +280,7 @@ describe('SSE and runtime protections', () => {
     const malformed = await runtime.app.request('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' }); expect(malformed.status).toBe(400);
   });
   it('limits strict endpoints by Cloudflare IP and refills tokens', async () => {
-    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
+    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare' });
     vi.useFakeTimers();
     const attempt = (ip: string) => runtime.app.request('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip }, body: '{}' });
     for (let i = 0; i < 20; i++) expect((await attempt('1.2.3.4')).status).toBe(400);
@@ -217,7 +289,7 @@ describe('SSE and runtime protections', () => {
     await vi.advanceTimersByTimeAsync(6000); expect((await attempt('1.2.3.4')).status).toBe(400);
   });
   it.each([undefined, ''])('falls back to distinct socket IPs with Cloudflare header %j', async header => {
-    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
+    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare' });
     vi.useFakeTimers();
     const attempt = (ip: string) => runtime.app.request('/api/events', {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(header === undefined ? {} : { 'CF-Connecting-IP': header }) }, body: '{}',
@@ -231,7 +303,7 @@ describe('SSE and runtime protections', () => {
     [false, undefined, false], [false, 'true', true],
   ] as const)('uses production=%s and COOKIE_SECURE=%s for cookie security', async (production, override, secure) => {
     vi.stubEnv('COOKIE_SECURE', override);
-    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', production, rateLimit: false, ttlDays: 0 });
+    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', production, rateLimit: false });
     const created = await request('/events', 'POST', input);
     expect(created.headers.get('set-cookie')!.includes('; Secure')).toBe(secure);
     const { event } = await created.json();
@@ -244,18 +316,11 @@ describe('SSE and runtime protections', () => {
     vi.stubEnv('COOKIE_SECURE', 'flase');
     expect(() => createApp({ databasePath: ':memory:', secret: 'test' })).toThrow('COOKIE_SECURE must be true or false');
   });
-  it('deletes expired events with cascade and preserves active events', async () => {
-    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', rateLimit: false, ttlDays: 180 });
-    const old = await create(); await session(old.event.id); const current = await create();
-    runtime.db.prepare('UPDATE events SET updated_at = ? WHERE id = ?').run('2020-01-01T00:00:00.000Z', old.event.id);
-    runtime.housekeep(); expect((await request(`/events/${old.event.id}`)).status).toBe(404); expect((await request(`/events/${current.event.id}`)).status).toBe(200);
-    expect(runtime.db.prepare('SELECT count(*) AS n FROM participants').get()).toEqual({ n: 0 });
-  });
   it('serves SPA fallback, immutable assets, no-cache index, secure cookies and keeps API 404s JSON', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mutual-web-'));
     try {
       mkdirSync(join(dir, 'assets')); writeFileSync(join(dir, 'index.html'), '<html>Mutual</html>'); writeFileSync(join(dir, 'assets', 'app.js'), 'export {};');
-      runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', production: true, webDist: dir, rateLimit: false, ttlDays: 0 });
+      runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', production: true, webDist: dir, rateLimit: false });
       const page = await runtime.app.request('/e/example'); expect(await page.text()).toBe('<html>Mutual</html>'); expect(page.headers.get('cache-control')).toBe('no-cache');
       const asset = await runtime.app.request('/assets/app.js'); expect(asset.headers.get('cache-control')).toContain('immutable'); expect(asset.headers.get('content-type')).toContain('javascript');
       expect((await runtime.app.request('/assets/missing.js')).status).toBe(404);
@@ -266,18 +331,18 @@ describe('SSE and runtime protections', () => {
   it('uses WAL and restores events, sessions and migrations after restart', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mutual-db-'));
     try {
-      runtime.close(); runtime = createApp({ dataDir: dir, secret: 'persisted-key', rateLimit: false, ttlDays: 0 });
+      runtime.close(); runtime = createApp({ dataDir: dir, secret: 'persisted-key', rateLimit: false });
       const { event, auth } = await create(); const signed = await session(event.id, 'Alice', 'secret');
       await request(`/events/${event.id}/availability`, 'PUT', { availability: '1212' }, signed.auth);
       expect(runtime.db.pragma('journal_mode', { simple: true })).toBe('wal');
-      expect(runtime.db.pragma('user_version', { simple: true })).toBe(2);
-      runtime.close(); runtime = createApp({ dataDir: dir, secret: 'persisted-key', rateLimit: false, ttlDays: 0 });
+      expect(runtime.db.pragma('user_version', { simple: true })).toBe(3);
+      runtime.close(); runtime = createApp({ dataDir: dir, secret: 'persisted-key', rateLimit: false });
       const restored = await (await request(`/events/${event.id}`, 'GET', undefined, `${auth}; ${signed.auth}`)).json();
       expect(restored.viewer).toEqual({ isAdmin: true, participantId: signed.participant.id });
       expect(restored.participants[0].availability).toBe('1212');
       expect((await session(event.id, 'alice', 'secret')).participant.id).toBe(signed.participant.id);
     } finally {
-      runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', rateLimit: false, ttlDays: 0 });
+      runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', rateLimit: false });
       rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -309,7 +374,7 @@ describe('abuse protections', () => {
     expect((await runtime.app.request(`/api/events/${event.id}`, { headers: { Origin: 'https://evil.example' } })).status).toBe(200);
   });
   it('limits password guesses per participant across many IPs', async () => {
-    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
+    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare' });
     const { event } = await create(); await session(event.id, 'Alice', 'right');
     const attempt = (i: number, password: string) => runtime.app.request(`/api/events/${event.id}/session`, { method: 'POST', headers: { ...json, 'CF-Connecting-IP': `198.51.100.${i}` }, body: JSON.stringify({ name: 'alice', password }) });
     for (let i = 0; i < 9; i++) expect((await attempt(i, 'wrong')).status).toBe(401);
@@ -327,14 +392,14 @@ describe('abuse protections', () => {
     expect(clientKey('192.0.2.7')).toBe('192.0.2.7');
   });
   it('rate limits a rotating IPv6 /64 as one client', async () => {
-    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
+    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare' });
     const attempt = (ip: string) => runtime.app.request('/api/events', { method: 'POST', headers: { ...json, 'CF-Connecting-IP': ip }, body: '{}' });
     for (let i = 0; i < 20; i++) expect((await attempt(`2001:db8:1:2::${(i + 1).toString(16)}`)).status).toBe(400);
     expect((await attempt('2001:db8:1:2:ffff::1')).status).toBe(429);
     expect((await attempt('2001:db8:1:3::1')).status).toBe(400);
   });
   it('caps live update connections per IP, per event and in total', async () => {
-    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare', rateLimit: false, ttlDays: 0, streamLimits: { perIp: 2, perEvent: 3, total: 4 } });
+    runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', trustProxy: 'cloudflare', rateLimit: false, streamLimits: { perIp: 2, perEvent: 3, total: 4 } });
     const one = (await create()).event.id, two = (await create()).event.id;
     const open = (id: string, ip: string) => runtime.app.request(`/api/events/${id}/stream`, { headers: { 'CF-Connecting-IP': ip } });
     const a = await open(one, '192.0.2.1'); await open(one, '192.0.2.1');
@@ -348,14 +413,14 @@ describe('abuse protections', () => {
   it('keeps rate limits across a restart', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mutual-limits-'));
     try {
-      runtime.close(); runtime = createApp({ dataDir: dir, secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
+      runtime.close(); runtime = createApp({ dataDir: dir, secret: 'test', trustProxy: 'cloudflare' });
       const attempt = () => runtime.app.request('/api/events', { method: 'POST', headers: { ...json, 'CF-Connecting-IP': '203.0.113.9' }, body: '{}' });
       for (let i = 0; i < 20; i++) await attempt();
       expect((await attempt()).status).toBe(429);
-      runtime.close(); runtime = createApp({ dataDir: dir, secret: 'test', trustProxy: 'cloudflare', ttlDays: 0 });
+      runtime.close(); runtime = createApp({ dataDir: dir, secret: 'test', trustProxy: 'cloudflare' });
       expect((await attempt()).status).toBe(429);
     } finally {
-      runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', rateLimit: false, ttlDays: 0 });
+      runtime.close(); runtime = createApp({ databasePath: ':memory:', secret: 'test', rateLimit: false });
       rmSync(dir, { recursive: true, force: true });
     }
   });

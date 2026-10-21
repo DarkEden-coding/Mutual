@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { ApiError, api, type EventDTO, type ParticipantDTO } from '../api';
 import { Dialog } from '../components/Dialog';
 import { EditEventDialog } from '../components/EditEventDialog';
+import { ExpiryNotice } from '../components/ExpiryNotice';
 import { EditGrid } from '../components/grid/EditGrid';
 import { HeatGrid } from '../components/grid/HeatGrid';
 import { BestTimes, BrushLegend, GroupLegend, ParticipantList } from '../components/GroupWidgets';
@@ -94,7 +95,7 @@ export function EventPage() {
   }
   if (state.status === 'notfound') {
     return (
-      <StateScreen title="We could not find that event" body="The link may be mistyped, or the event may have been removed.">
+      <StateScreen title="We could not find that event" body="The link may be mistyped, or the event may have been removed or reached its deletion date.">
         <Link className="m-button is-primary" to="/">
           Create a new event
         </Link>
@@ -103,7 +104,7 @@ export function EventPage() {
   }
   if (state.status === 'deleted') {
     return (
-      <StateScreen title="This event was deleted" body="The organizer removed it, so it is no longer available.">
+      <StateScreen title="This event was deleted" body="The organizer removed it or it reached its deletion date, so it is no longer available.">
         <Link className="m-button is-primary" to="/">
           Create a new event
         </Link>
@@ -347,6 +348,9 @@ function EventView({ event, participants, viewer, data, created, onDismissCreate
           <div>
             <h1 className="m-event-title">{event.title}</h1>
             {event.description && <p className="m-event-desc">{event.description}</p>}
+            <div className="m-event-meta">
+              <ExpiryNotice event={event} onExtended={data.setEvent} />
+            </div>
           </div>
           <div className="m-event-tools">
             <Tooltip content="Copy a link others can open to add their availability.">

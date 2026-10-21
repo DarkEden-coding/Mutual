@@ -14,6 +14,8 @@ export interface EventData {
   setViewer: (v: ViewerDTO) => void;
   upsertParticipant: (p: ParticipantDTO) => void;
   setSnapshot: (event: EventDTO, participants: ParticipantDTO[]) => void;
+  /** Replace event details only, keeping participants that may have streamed in meanwhile. */
+  setEvent: (event: EventDTO) => void;
   markDeleted: () => void;
   live: boolean;
 }
@@ -98,6 +100,7 @@ export function useEventData(id: string, enabled = true): EventData {
         return { ...cur, participants: exists ? cur.participants.map((x) => (x.id === p.id ? p : x)) : [...cur.participants, p] };
       }),
     setSnapshot: (event, participants) => setState((cur) => (cur.status === 'ready' ? { ...cur, event, participants } : cur)),
+    setEvent: (event) => setState((cur) => (cur.status === 'ready' ? { ...cur, event } : cur)),
     markDeleted: () => setState({ status: 'deleted' }),
   };
 }

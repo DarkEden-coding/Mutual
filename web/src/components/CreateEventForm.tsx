@@ -2,8 +2,10 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError, api, type EventMode, type SlotMinutes } from '../api';
 import { browserTimeZone, todayKey } from '../lib/tz';
+import { MAX_KEEP_MONTHS, expiryFor, formatExpiryDate } from '../lib/expiry';
 import { recordVisit } from '../lib/recent';
 import { DatePicker, HoursFields, WeekdayPicker } from './EventFields';
+import { IconHourglass } from './Icons';
 import { Segmented } from './Segmented';
 import { TimezoneSelect } from './TimezoneSelect';
 
@@ -23,6 +25,7 @@ export function CreateEventForm() {
   const [endMinute, setEndMinute] = useState(17 * 60);
   const [slotMinutes, setSlotMinutes] = useState<SlotMinutes>(15);
   const [timezone, setTimezone] = useState(browserTimeZone);
+  const [keepMonths, setKeepMonths] = useState(1);
   const [slug, setSlug] = useState('');
   const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle');
   const [submitting, setSubmitting] = useState(false);
@@ -81,6 +84,7 @@ export function CreateEventForm() {
         slotMinutes,
         timezone,
         slug: slug || undefined,
+        keepMonths,
       });
       recordVisit({ id: event.id, title: event.title, isAdmin: true });
       navigate(`/e/${event.id}`, { state: { created: { adminToken } } });
@@ -247,6 +251,35 @@ export function CreateEventForm() {
         </div>
       </section>
 
+      <section className="m-card" aria-labelledby={`${uid}-keep`}>
+        <div className="m-card-header">
+          <div>
+            <h2 className="m-card-title" id={`${uid}-keep`}>
+              How long should we keep it?
+            </h2>
+            <p className="m-card-sub">The event and everyone&apos;s responses are deleted automatically afterwards.</p>
+          </div>
+        </div>
+        <div className="m-card-body">
+          <div className="m-field">
+            <span className="m-label">Keep for</span>
+            <Segmented<number>
+              label="Keep the event for"
+              className="m-keep-picker"
+              block
+              value={keepMonths}
+              onChange={setKeepMonths}
+              options={Array.from({ length: MAX_KEEP_MONTHS }, (_, i) => ({
+                value: i + 1,
+                label: `${i + 1} mo`,
+                ariaLabel: `${i + 1} ${i ? 'months' : 'month'}`,
+              }))}
+            />
+          </div>
+          <KeepSummary mode={mode} dates={dates} months={keepMonths} />
+        </div>
+      </section>
+
       {error && (
         <div className="m-banner is-danger" role="alert">
           {error}
@@ -259,5 +292,30 @@ export function CreateEventForm() {
         </button>
       </div>
     </form>
+  );
+}
+
+/** Plain-language preview of when the new event will be deleted. */
+function KeepSummary({ mode, dates, months }: { mode: EventMode; dates: string[]; months: number }) {
+  const span = `${months} ${months === 1 ? 'month' : 'months'}`;
+  return (
+    <div className="m-expiry-note">
+      <IconHourglass size={20} />
+      <div>
+        <p aria-live="polite">
+          {mode === 'dates' && dates.length === 0 ? (
+            <>
+              Deleted <strong>{span}</strong> after the last date you pick.
+            </>
+          ) : (
+            <>
+              Deleted on <strong>{formatExpiryDate(expiryFor(mode === 'dates' ? dates : [], months))}</strong>, {span}{' '}
+              {mode === 'dates' ? 'after the last date' : 'from today'}.
+            </>
+          )}
+        </p>
+        <p className="m-hint">Still planning when it gets close? Anyone with the link can add another month during the last 10 days.</p>
+      </div>
+    </div>
   );
 }

@@ -16,6 +16,9 @@ heatmap and a ranked list of the best meeting times.
 - **Participant passwords**: a name can be protected so nobody else can change that row.
 - **Private admin links**: the creator gets an admin link to edit or delete the event
   from any device.
+- **Automatic deletion**: events and their responses are deleted 1 to 6 months (chosen at
+  creation) after the last date. During the last 10 days, visitors are offered a button to keep
+  the event for another month.
 - **12 themes** with light and dark variants, picked per visitor.
 - **Self-hosted**: a single Docker image and a SQLite database. No external services are
   required, and an optional Cloudflare Tunnel exposes it publicly.
@@ -172,7 +175,6 @@ Copy `.env.example` to `.env` for Compose. Every variable is optional unless not
 | `SESSION_SECRET` | *(empty)* | Signs participant cookies. Empty generates one and saves it to `DATA_DIR/secret`. |
 | `TRUST_PROXY` | `cloudflare` (Compose) | `cloudflare` reads `CF-Connecting-IP` and falls back to the socket address. `none` uses the socket address. |
 | `COOKIE_SECURE` | *(empty)* | `true`/`false`. Empty means `true` in production and `false` otherwise. |
-| `EVENT_TTL_DAYS` | `180` | Deletes events inactive for this many days. `0` disables cleanup. |
 | `NODE_ENV` | — | `production` enables static web serving and Secure cookies. Set by Docker. |
 | `WEB_DIST` | `web/dist` | Directory of the built web app. Docker sets `/app/web/dist`. |
 | `HOST_PORT` | `8787` | Compose only. Host port, bound to `127.0.0.1`. |

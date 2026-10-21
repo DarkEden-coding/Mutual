@@ -53,6 +53,12 @@ If you need to deviate, update this file in the same change and keep both sides 
   whose answers a change would merge or clear before saving. Admin can also
   delete the event (with confirmation). Visiting `/e/:id?admin=<token>` claims admin on that device
   (sets the cookie) and strips the query string.
+- **Automatic deletion**: the create form asks how long to keep the event, 1 to 6 months (default 1)
+  after its last date. Weekday events, and date events whose dates have passed, count from the day
+  of creation. The event header shows the deletion date. In the last 10 days anyone opening the event
+  sees a dialog offering to keep it for another month, and the header badge reopens it. When the
+  date passes, the server deletes the event and its responses. An admin edit that moves the last date
+  later pushes the deletion date back by the same rule, and an edit never brings it forward.
 
 ### Timezones
 - Event slots are defined in the **event timezone**.
@@ -138,7 +144,9 @@ interface EventDTO {
   slotMinutes: 15 | 30 | 60;
   timezone: string;        // IANA
   createdAt: string;       // ISO 8601
-  updatedAt: string;
+  updatedAt: string;       // last schedule edit, availability save, or new participant
+  keepMonths: number;      // 1..6, chosen at creation
+  expiresAt: string;       // ISO 8601; the server deletes the event at this instant
 }
 
 interface ParticipantDTO {
@@ -161,9 +169,10 @@ interface ViewerDTO {
 |---|---|---|---|
 | GET | `/api/health` | – | `{ ok: true }` |
 | GET | `/api/slugs/:slug` | – | `{ available: boolean, valid: boolean }` |
-| POST | `/api/events` | `{ title, description?, mode, dates?, weekdays?, startMinute, endMinute, slotMinutes, timezone, slug? }` | `201 { event: EventDTO, adminToken: string }` + sets admin cookie |
+| POST | `/api/events` | `{ title, description?, mode, dates?, weekdays?, startMinute, endMinute, slotMinutes, timezone, slug?, keepMonths? }` | `201 { event: EventDTO, adminToken: string }` + sets admin cookie |
 | GET | `/api/events/:id` | – | `{ event, participants: ParticipantDTO[], viewer: ViewerDTO }` |
 | PATCH | `/api/events/:id` | partial `{ title, description, dates, weekdays, startMinute, endMinute, slotMinutes }` (admin) | `{ event, participants }` |
+| POST | `/api/events/:id/extend` | – (anyone) | `{ event }` with `expiresAt` one month later; `409 too_early` unless within 10 days of deletion. `updatedAt` is unchanged. |
 | DELETE | `/api/events/:id` | – (admin) | `204` |
 | POST | `/api/events/:id/admin` | `{ token }` | `{ viewer }` + sets admin cookie; `403 forbidden` if wrong |
 | POST | `/api/events/:id/session` | `{ name, password? }` | `{ participant, viewer }` + sets participant cookie. Creates participant if name (case-insensitive, trimmed) is new; if existing with password → must match (`401 wrong_password`); if existing without password → ok. A password supplied for a new participant is stored. |
@@ -185,7 +194,7 @@ Headers: `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-transfo
 `X-Accel-Buffering: no`. Heartbeat comment every 20 s.
 Events:
 - `event: participant` / `data: ParticipantDTO` (created or availability changed)
-- `event: event` / `data: { event: EventDTO, participants: ParticipantDTO[] }` (admin edit)
+- `event: event` / `data: { event: EventDTO, participants: ParticipantDTO[] }` (admin edit or extension)
 - `event: deleted` / `data: {}`
 
 ---

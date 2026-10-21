@@ -1338,6 +1338,125 @@
   margin: 0;
 }
 
+/* ---- Keep-alive (automatic deletion) ---- */
+.m-keep-picker .m-segmented-option {
+  padding: 0 var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+.m-expiry-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  font-size: var(--text-sm);
+}
+.m-expiry-note > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent);
+}
+.m-expiry-note p + p {
+  margin-top: var(--space-1);
+}
+.m-expiry-badge {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 1.75rem;
+  padding: 0.125rem var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1.4;
+  white-space: nowrap;
+  backdrop-filter: var(--backdrop);
+}
+.m-expiry-badge.is-soon {
+  background: var(--warning-soft);
+  border-color: var(--warning);
+  color: var(--warning);
+  cursor: pointer;
+  transition:
+    background var(--dur-base) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.m-expiry-badge.is-soon:hover {
+  background: color-mix(in oklab, var(--warning) 16%, var(--warning-soft));
+}
+.m-expiry-badge.is-soon:active {
+  transform: translateY(1px);
+}
+.m-expiry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+.m-expiry-count {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 6.5rem;
+  aspect-ratio: 1;
+  border: var(--border-width) solid var(--warning);
+  border-radius: var(--radius-lg);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.m-expiry-num {
+  font-family: var(--font-heading);
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.m-expiry-unit {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.m-expiry-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .m-expiry-badge.is-soon svg,
+  .m-expiry-count {
+    animation: m-hourglass 2.4s var(--ease-in-out) infinite;
+  }
+  .m-expiry-count {
+    animation-name: m-breathe;
+  }
+}
+@keyframes m-hourglass {
+  0%,
+  70% {
+    transform: rotate(0);
+  }
+  100% {
+    transform: rotate(180deg);
+  }
+}
+@keyframes m-breathe {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--warning) 14%, transparent);
+  }
+}
+
 /* ---- Keyframes ---- */
 @keyframes m-fade {
   from {
@@ -1381,5 +1500,21 @@
   }
   .m-segmented-option {
     padding: 0 var(--space-3);
+  }
+  .m-keep-picker .m-segmented-option {
+    padding: 0 var(--space-1);
+  }
+  .m-expiry {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-4);
+  }
+  .m-expiry-count {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-2);
+    width: auto;
+    aspect-ratio: auto;
+    padding: var(--space-3) var(--space-4);
   }
 }

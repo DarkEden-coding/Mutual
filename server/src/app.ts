@@ -9,14 +9,14 @@ import { bodyLimit } from 'hono/body-limit';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { z } from 'zod';
 import { openDatabase, statements, eventDTO, participantDTO, type EventRecord, type ParticipantRecord } from './database.js';
-import { createSchema, eventFields, patchSchema, sessionSchema, availabilitySchema, adminSchema, checkEvent, sortDays, totalSlots, remap, validSlug, type EventDTO } from './model.js';
+import { createSchema, eventFields, patchSchema, sessionSchema, availabilitySchema, adminSchema, checkEvent, sortDays, totalSlots, remap, validSlug, expiryFor, extendExpiry, canExtend, type EventDTO } from './model.js';
 import { equal, tokenHash, hashPassword, verifyPassword, sessionSecret, signParticipant, readParticipant, clientKey, RateLimiter, type Bucket } from './security.js';
 
 class ApiError extends Error {
   constructor(public status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429, public code: string, message: string, public retryAfter = 6) { super(message); }
 }
 interface StreamLimits { perIp: number; perEvent: number; total: number }
-interface Options { databasePath?: string; dataDir?: string; secret?: string; production?: boolean; webDist?: string; trustProxy?: string; rateLimit?: boolean; ttlDays?: number; streamLimits?: StreamLimits }
+interface Options { databasePath?: string; dataDir?: string; secret?: string; production?: boolean; webDist?: string; trustProxy?: string; rateLimit?: boolean; streamLimits?: StreamLimits }
 export function createApp(options: Options = {}) {
   const production = options.production ?? process.env.NODE_ENV === 'production';
   const cookieSecureEnv = process.env.COOKIE_SECURE;
@@ -50,7 +50,8 @@ export function createApp(options: Options = {}) {
   const cookieOptions = { httpOnly: true, sameSite: 'Lax' as const, secure: cookieSecure, path: '/', maxAge: 365 * 24 * 60 * 60 };
   const findEvent = (id: string) => {
     const row = sql.event.get(id) as EventRecord | undefined;
-    if (!row) throw new ApiError(404, 'not_found', 'Event not found');
+    // Housekeeping runs hourly; an event past its deletion time is already gone as far as clients know.
+    if (!row || row.expires_at <= new Date().toISOString()) throw new ApiError(404, 'not_found', 'Event not found');
     return row;
   };
   const participants = (id: string) => (sql.participants.all(id) as ParticipantRecord[]).map(participantDTO);
@@ -76,7 +77,7 @@ export function createApp(options: Options = {}) {
   }
   function touch(row: EventRecord) {
     const event = { ...eventDTO(row), updatedAt: new Date().toISOString() };
-    sql.updateEvent.run(JSON.stringify(event), event.updatedAt, event.id);
+    sql.updateEvent.run(JSON.stringify(event), event.updatedAt, event.expiresAt, event.id);
   }
   app.use('*', async (c, next) => {
     await next();
@@ -123,15 +124,15 @@ export function createApp(options: Options = {}) {
     return c.json({ available: valid && !sql.event.get(slug), valid });
   });
   app.post('/api/events', async c => {
-    const { slug, ...input } = await parse(c, createSchema);
+    const { slug, keepMonths, ...input } = await parse(c, createSchema);
     let id = slug;
     if (id && sql.event.get(id)) throw new ApiError(409, 'slug_taken', 'This slug is already in use');
     const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
     if (!id) do { id = Array.from({ length: 10 }, () => alphabet[randomInt(alphabet.length)]).join(''); } while (sql.event.get(id));
     const now = new Date().toISOString();
-    const event: EventDTO = sortDays({ ...input, id, createdAt: now, updatedAt: now });
+    const event: EventDTO = sortDays({ ...input, id, createdAt: now, updatedAt: now, keepMonths, expiresAt: expiryFor(input, keepMonths) });
     const adminToken = randomBytes(32).toString('base64url');
-    sql.insertEvent.run(id, JSON.stringify(event), tokenHash(adminToken), now);
+    sql.insertEvent.run(id, JSON.stringify(event), tokenHash(adminToken), now, event.expiresAt);
     setCookie(c, `mutual_admin_${id}`, adminToken, cookieOptions);
     return c.json({ event, adminToken }, 201);
   });
@@ -147,17 +148,30 @@ export function createApp(options: Options = {}) {
     requireAdmin(c, row);
     const previous = eventDTO(row);
     // DTO metadata is deliberately removed before validating the editable event fields.
-    const { id: _id, createdAt: _created, updatedAt: _updated, ...fields } = previous;
+    const { id: _id, createdAt: _created, updatedAt: _updated, keepMonths: _keep, expiresAt: _expires, ...fields } = previous;
     const result = eventFields.safeParse({ ...fields, ...patch });
     if (!result.success || !checkEvent(result.data)) throw new ApiError(400, 'invalid_input', 'Invalid event days or hours');
     const event: EventDTO = sortDays({ ...previous, ...result.data, updatedAt: new Date().toISOString() });
+    // Moving the last date later pushes deletion out with it; nothing an edit does brings it closer.
+    if (patch.dates) { const moved = expiryFor(event, event.keepMonths); if (moved > event.expiresAt) event.expiresAt = moved; }
     db.transaction(() => {
       for (const participant of sql.participants.all(row.id) as ParticipantRecord[]) sql.availability.run(remap(previous, event, participant.availability), event.updatedAt, participant.id);
-      sql.updateEvent.run(JSON.stringify(event), event.updatedAt, row.id);
+      sql.updateEvent.run(JSON.stringify(event), event.updatedAt, event.expiresAt, row.id);
     })();
     const payload = { event, participants: participants(row.id) };
     broadcast(row.id, 'event', payload);
     return c.json(payload);
+  });
+  // Anyone with the link may keep an event alive, but only once it is close to deletion, so each
+  // extension buys one month and the next one has to wait until the event nears deletion again.
+  app.post('/api/events/:id/extend', c => {
+    const row = findEvent(c.req.param('id')), previous = eventDTO(row);
+    if (!canExtend(previous.expiresAt)) throw new ApiError(409, 'too_early', 'This event can be extended in the last 10 days before deletion');
+    // updatedAt is left alone: it marks edits to the schedule, and clients reload drafts when it changes.
+    const event: EventDTO = { ...previous, expiresAt: extendExpiry(previous.expiresAt) };
+    sql.updateEvent.run(JSON.stringify(event), row.updated_at, event.expiresAt, row.id);
+    broadcast(row.id, 'event', { event, participants: participants(row.id) });
+    return c.json({ event });
   });
   app.delete('/api/events/:id', c => {
     const row = findEvent(c.req.param('id')); requireAdmin(c, row);
@@ -279,19 +293,15 @@ export function createApp(options: Options = {}) {
     } catch { throw new ApiError(404, 'not_found', 'Web build not found'); }
   });
   app.notFound(c => c.json({ error: { code: 'not_found', message: 'Not found' } }, 404));
-  const ttlDays = options.ttlDays ?? Number(process.env.EVENT_TTL_DAYS ?? 180);
-  if (!Number.isFinite(ttlDays) || ttlDays < 0) { db.close(); throw new Error('EVENT_TTL_DAYS must be a non-negative number'); }
   function housekeep() {
-    if (!ttlDays) return;
-    const cutoff = new Date(Date.now() - ttlDays * 86_400_000).toISOString();
-    for (const { id } of sql.staleEvents.all(cutoff) as { id: string }[]) { sql.deleteEvent.run(id); broadcast(id, 'deleted', {}); }
+    for (const { id } of sql.expiredEvents.all(new Date().toISOString()) as { id: string }[]) { sql.deleteEvent.run(id); broadcast(id, 'deleted', {}); }
   }
   housekeep();
-  const housekeeping = ttlDays ? setInterval(housekeep, 86_400_000) : undefined;
-  housekeeping?.unref();
+  const housekeeping = setInterval(housekeep, 3_600_000);
+  housekeeping.unref();
   return { app, db, housekeep, subscriberCount: () => [...subscribers.values()].reduce((sum, set) => sum + set.size, 0), close: () => {
     if (!db.open) return;
-    if (housekeeping) clearInterval(housekeeping);
+    clearInterval(housekeeping);
     for (const set of [...subscribers.values()]) for (const subscriber of [...set]) subscriber.close();
     db.transaction((buckets: Bucket[]) => {
       sql.clearRateLimits.run();
