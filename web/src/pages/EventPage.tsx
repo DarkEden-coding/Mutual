@@ -247,9 +247,14 @@ function EventView({ event, participants, viewer, data, created, onDismissCreate
   }, [saveState]);
 
   // ---- group data ----
-  const groupParticipants = useMemo(
+  const allParticipants = useMemo(
     () => (me ? participants.map((p) => (p.id === me.id ? { ...p, availability: mine } : p)) : participants),
     [participants, me, mine],
+  );
+  // People who picked no slots don't count towards the group view, best times or tooltips.
+  const groupParticipants = useMemo(
+    () => allParticipants.filter((p) => /[12]/.test(p.availability)),
+    [allParticipants],
   );
   const counts = useMemo(() => computeCounts(groupParticipants, total), [groupParticipants, total]);
   const blocks = useMemo(() => findBestBlocks(view, groupParticipants), [view, groupParticipants]);
@@ -264,8 +269,8 @@ function EventView({ event, participants, viewer, data, created, onDismissCreate
   const activeSlot = hoverSlot ?? pinnedSlot;
   const [personId, setPersonId] = useState<string | null>(null);
   const personAvail = useMemo(
-    () => (personId ? (groupParticipants.find((p) => p.id === personId)?.availability ?? null) : null),
-    [personId, groupParticipants],
+    () => (personId ? (allParticipants.find((p) => p.id === personId)?.availability ?? null) : null),
+    [personId, allParticipants],
   );
 
   // ---- actions ----
@@ -508,7 +513,7 @@ function EventView({ event, participants, viewer, data, created, onDismissCreate
             )}
             <div className="m-panel-controls">
               <BestTimes blocks={blocks} view={view} activeId={bestId} onSelect={setBestId} onHover={setBestHoverId} />
-              <GroupLegend participants={participants.length} />
+              <GroupLegend participants={groupParticipants.length} />
             </div>
             <div className="m-panel-main">
               <HeatGrid
