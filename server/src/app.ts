@@ -327,7 +327,7 @@ export function createApp(options: Options = {}) {
     const id = /^\/e\/([^/]+)\/?$/.exec(c.req.path)?.[1];
     let event: EventDTO | undefined;
     if (id) try { event = eventDTO(findEvent(decodeURIComponent(id))); } catch { /* unknown or expired: generic preview */ }
-    const known = c.req.path === '/' || c.req.path === '/admin' || !!event;
+    const known = c.req.path === '/' || c.req.path === '/new' || c.req.path === '/admin' || !!event;
     return { tags: previewTags(originOf(c), c.req.path, event), status: known ? 200 as const : 404 as const, index: c.req.path === '/' };
   };
   app.get('*', async c => {

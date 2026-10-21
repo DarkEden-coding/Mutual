@@ -10,7 +10,7 @@ If you need to deviate, update this file in the same change and keep both sides 
 
 ## 1. Product scope
 
-### Creating an event (home page `/`)
+### Creating an event (`/new`, linked from the home page `/`)
 - Fields:
   - **Title** (required, 1–100 chars)
   - **Description** (optional, ≤ 1000 chars, plain text, newlines preserved)

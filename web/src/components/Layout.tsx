@@ -23,11 +23,11 @@ export function Layout() {
         <Outlet />
       </main>
       <footer className="m-footer">
-        {pathname === '/' ? (
+        {pathname === '/' || pathname === '/new' ? (
           'Find a time that works for everyone.'
         ) : (
           <>
-            Made with Mutual · <Link to="/">Create your own free scheduling poll</Link>
+            Made with Mutual · <Link to="/new">Create your own free scheduling poll</Link>
           </>
         )}
       </footer>

@@ -1,7 +1,8 @@
+import { Link } from 'react-router';
 import { IconCheck, IconGlobe, IconHourglass, IconLock, IconPalette, IconUsers, IconX } from './Icons';
 
 // Static home page copy. src/seo.tsx renders it into index.html at build time for crawlers that do not run
-// JavaScript, so nothing here may use hooks, the router or browser APIs. Keep the FAQ in sync with the
+// JavaScript, so nothing here may use hooks or browser APIs (Link is fine: seo.tsx wraps it in a StaticRouter). Keep the FAQ in sync with the
 // FAQPage structured data in server/src/preview.ts.
 
 const steps = [
@@ -39,8 +40,6 @@ export const faq = [
   ['How long are events kept?', 'Events are deleted automatically 1 to 6 months after their last date, chosen when the event is created.'],
 ];
 
-const useCases = ['Team meetings', 'Study groups', 'D&D and game nights', 'Club meetings', 'Band practice', 'Interviews', 'Family calls', 'Remote teams'];
-
 const mark = (value: boolean | 'partial') =>
   value === 'partial' ? (
     <span className="m-home-partial">Limited</span>
@@ -52,18 +51,34 @@ const mark = (value: boolean | 'partial') =>
 
 export function HomeHero() {
   return (
-    <div className="m-hero">
-      <div className="m-home-badges">
-        <span className="m-badge is-accent">Free</span>
-        <span className="m-badge">No sign-up</span>
-        <span className="m-badge">Open source</span>
+    <section className="m-home-hero">
+      <div className="m-hero m-home-hook">
+        <h1>Find a time that works for everyone.</h1>
+        <p>
+          Share one link, everyone paints when they are free, and the best time lights up. A free, no sign-up When2Meet alternative with live
+          results.
+        </p>
+        <div className="m-home-actions">
+          <Link to="/new" className="m-button is-primary">
+            Create a meet
+          </Link>
+          <span className="m-hint">Free, no account, about 30 seconds.</span>
+        </div>
       </div>
-      <h1>Find a time that works for everyone.</h1>
-      <p>
-        Mutual is a free group scheduling poll. Create an event, share the link, and everyone paints when they are free. A simpler, prettier When2Meet
-        alternative with live results.
-      </p>
-    </div>
+      <figure className="m-home-shot">
+        {(['light', 'dark'] as const).map((mode) => (
+          <img
+            key={mode}
+            className={`is-${mode}`}
+            src={`/example-${mode}.png`}
+            width={1280}
+            height={900}
+            loading="lazy"
+            alt="An example Mutual event: a weekly availability heatmap with the best times ranked beside it"
+          />
+        ))}
+      </figure>
+    </section>
   );
 }
 
@@ -96,15 +111,6 @@ export function HomeSections() {
             </div>
           ))}
         </div>
-      </section>
-
-      <section className="m-home-section" aria-labelledby="uses-title">
-        <h2 id="uses-title">Made for any group</h2>
-        <ul className="m-home-tags">
-          {useCases.map((u) => (
-            <li key={u}>{u}</li>
-          ))}
-        </ul>
       </section>
 
       <section className="m-home-section" aria-labelledby="compare-title">

@@ -96,7 +96,7 @@ export function EventPage() {
   if (state.status === 'notfound') {
     return (
       <StateScreen title="We could not find that event" body="The link may be mistyped, or the event may have been removed or reached its deletion date.">
-        <Link className="m-button is-primary" to="/">
+        <Link className="m-button is-primary" to="/new">
           Create a new event
         </Link>
       </StateScreen>
@@ -105,7 +105,7 @@ export function EventPage() {
   if (state.status === 'deleted') {
     return (
       <StateScreen title="This event was deleted" body="The organizer removed it or it reached its deletion date, so it is no longer available.">
-        <Link className="m-button is-primary" to="/">
+        <Link className="m-button is-primary" to="/new">
           Create a new event
         </Link>
       </StateScreen>

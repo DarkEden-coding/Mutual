@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { ToastProvider } from './components/Toast';
 import { EventPage } from './pages/EventPage';
 import { Home } from './pages/Home';
+import { NewEvent } from './pages/NewEvent';
 import { NotFound } from './pages/NotFound';
 
 // Dev-only theme kitchen sink; tree-shaken out of production builds.
@@ -19,6 +20,7 @@ export function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<Home />} />
+            <Route path="new" element={<NewEvent />} />
             <Route path="e/:id" element={<EventPage />} />
             <Route
               path="admin"
