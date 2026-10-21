@@ -8,17 +8,21 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { bodyLimit } from 'hono/body-limit';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { z } from 'zod';
+import { adminMetrics } from './admin.js';
 import { previewTags, withPreview } from './preview.js';
 import { openDatabase, statements, eventDTO, participantDTO, type EventRecord, type ParticipantRecord } from './database.js';
 import { createSchema, eventFields, patchSchema, sessionSchema, availabilitySchema, adminSchema, checkEvent, sortDays, totalSlots, remap, validSlug, expiryFor, extendExpiry, canExtend, type EventDTO } from './model.js';
-import { equal, tokenHash, hashPassword, verifyPassword, sessionSecret, signParticipant, readParticipant, clientKey, RateLimiter, type Bucket } from './security.js';
+import { equal, tokenHash, hashPassword, verifyPassword, sessionSecret, signParticipant, readParticipant, signConsole, readConsole, clientKey, RateLimiter, type Bucket } from './security.js';
 
 class ApiError extends Error {
   constructor(public status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429, public code: string, message: string, public retryAfter = 6) { super(message); }
 }
 interface StreamLimits { perIp: number; perEvent: number; total: number }
-interface Options { databasePath?: string; dataDir?: string; secret?: string; production?: boolean; webDist?: string; trustProxy?: string; publicUrl?: string; rateLimit?: boolean; streamLimits?: StreamLimits }
+interface Options { adminToken?: string; backupDir?: string; databasePath?: string; dataDir?: string; secret?: string; production?: boolean; webDist?: string; trustProxy?: string; publicUrl?: string; rateLimit?: boolean; streamLimits?: StreamLimits }
 export function createApp(options: Options = {}) {
+  const adminToken = options.adminToken ?? process.env.ADMIN_TOKEN ?? '';
+  if (adminToken && adminToken.length < 32) throw new Error('ADMIN_TOKEN must be at least 32 characters');
+  const adminHash = tokenHash(adminToken);
   const production = options.production ?? process.env.NODE_ENV === 'production';
   const cookieSecureEnv = process.env.COOKIE_SECURE;
   if (cookieSecureEnv && cookieSecureEnv !== 'true' && cookieSecureEnv !== 'false') throw new Error('COOKIE_SECURE must be true or false');
@@ -27,15 +31,16 @@ export function createApp(options: Options = {}) {
   const filename = options.databasePath ?? resolve(dataDir, 'mutual.sqlite');
   if (filename !== ':memory:') mkdirSync(dirname(filename), { recursive: true });
   const db = openDatabase(filename), sql = statements(db);
+  const metrics = adminMetrics(db, sql, filename, options.backupDir ?? process.env.BACKUP_DIR);
   const secret = options.secret ?? sessionSecret(dataDir);
   const webDist = resolve(options.webDist ?? process.env.WEB_DIST ?? fileURLToPath(new URL('../../web/dist', import.meta.url)));
   const proxy = options.trustProxy ?? process.env.TRUST_PROXY;
+  const publicUrl = (options.publicUrl ?? process.env.PUBLIC_URL ?? '').replace(/\/+$/, '');
   const limiter = new RateLimiter();
   limiter.restore(sql.rateLimits.all(Date.now() - 3_600_000) as Bucket[]);
   const streamLimits = options.streamLimits ?? { perIp: 20, perEvent: 300, total: 2000 };
   const streamsByIp = new Map<string, number>();
   const app = new Hono<{ Variables: { ip: string } }>();
-  const publicUrl = (options.publicUrl ?? process.env.PUBLIC_URL ?? '').replace(/\/+$/, '');
   const subscribers = new Map<string, Set<{ send: (chunk: Uint8Array) => void; close: () => void }>>();
   const encoder = new TextEncoder();
   const heartbeatChunk = encoder.encode(': heartbeat\n\n'), connectedChunk = encoder.encode(': connected\n\n');
@@ -50,6 +55,7 @@ export function createApp(options: Options = {}) {
     }
   }
   const cookieOptions = { httpOnly: true, sameSite: 'Lax' as const, secure: cookieSecure, path: '/', maxAge: 365 * 24 * 60 * 60 };
+  const consoleCookieOptions = { httpOnly: true, sameSite: 'Strict' as const, secure: cookieSecure, path: '/api/admin', maxAge: 12 * 60 * 60 };
   const findEvent = (id: string) => {
     const row = sql.event.get(id) as EventRecord | undefined;
     // Housekeeping runs hourly; an event past its deletion time is already gone as far as clients know.
@@ -83,6 +89,7 @@ export function createApp(options: Options = {}) {
   }
   app.use('*', async (c, next) => {
     await next();
+    if (c.req.path === '/api/admin' || c.req.path.startsWith('/api/admin/')) c.header('X-Robots-Tag', 'noindex');
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
     c.header('X-Frame-Options', 'DENY');
@@ -90,6 +97,10 @@ export function createApp(options: Options = {}) {
     if (c.req.path === '/api' || c.req.path.startsWith('/api/')) {
       if (!c.res.headers.has('Cache-Control')) c.header('Cache-Control', 'no-store');
     }
+  });
+  app.use('/api/admin/*', async (c, next) => {
+    if (!adminToken) throw new ApiError(404, 'not_found', 'Not found');
+    await next();
   });
   app.use('*', bodyLimit({ maxSize: 64 * 1024, onError: c => c.json({ error: { code: 'invalid_input', message: 'Request body exceeds 64 KiB' } }, 413) }));
   app.use('/api/*', async (c, next) => {
@@ -99,7 +110,7 @@ export function createApp(options: Options = {}) {
     c.set('ip', ip);
     if (options.rateLimit !== false) {
       if (!limiter.take(`all:${ip}`, 240, 4)) throw new ApiError(429, 'rate_limited', 'Too many requests');
-      if (c.req.method === 'POST' && (c.req.path === '/api/events' || /\/(session|admin)$/.test(c.req.path))) {
+      if (c.req.method === 'POST' && (c.req.path === '/api/events' || c.req.path === '/api/admin/login' || /\/(session|admin)$/.test(c.req.path))) {
         if (!limiter.take(`auth:${ip}`, 20, 1 / 6)) throw new ApiError(429, 'rate_limited', 'Too many create or sign-in attempts');
       }
     }
@@ -114,11 +125,30 @@ export function createApp(options: Options = {}) {
   });
   app.onError((error, c) => {
     if (error instanceof ApiError) {
-      if (error.status === 429) c.header('Retry-After', String(error.retryAfter));
+      if (error.status === 429) { metrics.throttled(); c.header('Retry-After', String(error.retryAfter)); }
       return c.json({ error: { code: error.code, message: error.message } }, error.status);
     }
     console.error(error);
     return c.json({ error: { code: 'internal_error', message: 'Internal server error' } }, 500);
+  });
+  app.post('/api/admin/login', async c => {
+    const { token } = await parse(c, adminSchema);
+    if (options.rateLimit !== false && !limiter.peek('admin-login', 10, 10 / 3600)) throw new ApiError(429, 'rate_limited', 'Too many admin sign-in attempts', 360);
+    if (!equal(tokenHash(token), adminHash)) {
+      if (options.rateLimit !== false) limiter.take('admin-login', 10, 10 / 3600);
+      console.warn(`Failed admin login from ${JSON.stringify(c.get('ip'))}`);
+      throw new ApiError(403, 'forbidden', 'Invalid admin token');
+    }
+    setCookie(c, 'mutual_console', signConsole(secret, adminHash), consoleCookieOptions);
+    return c.json({ ok: true });
+  });
+  app.post('/api/admin/logout', c => {
+    deleteCookie(c, 'mutual_console', consoleCookieOptions);
+    return c.body(null, 204);
+  });
+  app.get('/api/admin/stats', async c => {
+    if (!readConsole(secret, adminHash, getCookie(c, 'mutual_console'))) throw new ApiError(401, 'unauthorized', 'Admin session required');
+    return c.json(await metrics.stats(limiter, subscribers, streamLimits.total));
   });
   app.get('/api/health', c => c.json({ ok: true }));
   app.get('/api/slugs/:slug', c => {
@@ -135,6 +165,7 @@ export function createApp(options: Options = {}) {
     const event: EventDTO = sortDays({ ...input, id, createdAt: now, updatedAt: now, keepMonths, expiresAt: expiryFor(input, keepMonths) });
     const adminToken = randomBytes(32).toString('base64url');
     sql.insertEvent.run(id, JSON.stringify(event), tokenHash(adminToken), now, event.expiresAt);
+    metrics.increment('eventsCreated');
     setCookie(c, `mutual_admin_${id}`, adminToken, cookieOptions);
     return c.json({ event, adminToken }, 201);
   });
@@ -194,7 +225,7 @@ export function createApp(options: Options = {}) {
   // Per-participant limit, so guesses spread across many IPs still cannot brute-force one password.
   const checkPassword = async (participant: ParticipantRecord, password: string) => {
     if (!participant.password_hash) return;
-    if (options.rateLimit !== false && !limiter.take(`password:${participant.id}`, 10, 10 / 3600)) throw new ApiError(429, 'rate_limited', 'Too many password attempts for this name. Try again later.', 360);
+    if (options.rateLimit !== false && !limiter.take(`password:${participant.id}`, 10, 10 / 3600)) { metrics.throttled(true); throw new ApiError(429, 'rate_limited', 'Too many password attempts for this name. Try again later.', 360); }
     if (!await verifyPassword(password, participant.password_salt!, participant.password_hash)) throw new ApiError(401, 'wrong_password', 'Incorrect password');
   };
   app.post('/api/events/:id/session', async c => {
@@ -217,6 +248,7 @@ export function createApp(options: Options = {}) {
           sql.insertParticipant.run(participantId, id, name, key, hashed?.salt ?? null, hashed?.hash ?? null, '0'.repeat(totalSlots(eventDTO(row))), now);
           touch(row);
         })();
+        metrics.increment('participantsJoined');
         participant = sql.participant.get(id, participantId) as ParticipantRecord;
         broadcast(id, 'participant', participantDTO(participant));
       }
@@ -238,6 +270,7 @@ export function createApp(options: Options = {}) {
     if (!participantId) throw new ApiError(401, 'unauthorized', 'Sign in to save availability');
     if (availability.length !== totalSlots(eventDTO(row))) throw new ApiError(400, 'invalid_input', 'Availability length must equal totalSlots');
     db.transaction(() => { sql.availability.run(availability, new Date().toISOString(), participantId); touch(row); })();
+    metrics.increment('availabilitySaves');
     const participant = participantDTO(sql.participant.get(id, participantId) as ParticipantRecord);
     broadcast(id, 'participant', participant);
     return c.json({ participant });
@@ -304,7 +337,10 @@ export function createApp(options: Options = {}) {
     } catch { throw new ApiError(404, 'not_found', 'Web build not found'); }
   });
   app.notFound(c => c.json({ error: { code: 'not_found', message: 'Not found' } }, 404));
+  // Statistics are best-effort: a failed flush must never stop expiry, crash the interval or block shutdown.
+  const flushMetrics = () => { try { metrics.flush(); } catch (error) { console.error(error); } };
   function housekeep() {
+    flushMetrics();
     for (const { id } of sql.expiredEvents.all(new Date().toISOString()) as { id: string }[]) { sql.deleteEvent.run(id); broadcast(id, 'deleted', {}); }
   }
   housekeep();
@@ -313,6 +349,7 @@ export function createApp(options: Options = {}) {
   return { app, db, housekeep, subscriberCount: () => [...subscribers.values()].reduce((sum, set) => sum + set.size, 0), close: () => {
     if (!db.open) return;
     clearInterval(housekeeping);
+    flushMetrics();
     for (const set of [...subscribers.values()]) for (const subscriber of [...set]) subscriber.close();
     db.transaction((buckets: Bucket[]) => {
       sql.clearRateLimits.run();

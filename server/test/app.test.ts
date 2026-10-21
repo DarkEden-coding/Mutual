@@ -192,7 +192,7 @@ describe('expiry', () => {
         ['future-event', '2027-01-26T00:00:00.000Z', '2027-01-26T00:00:00.000Z', 1],
         ['past-event', '2026-11-02T00:00:00.000Z', '2026-11-02T00:00:00.000Z', 1],
       ]);
-      expect(runtime.db.pragma('user_version', { simple: true })).toBe(3);
+      expect(runtime.db.pragma('user_version', { simple: true })).toBe(4);
     } finally { runtime.close(); rmSync(dir, { recursive: true, force: true }); }
   });
 });
@@ -351,7 +351,7 @@ describe('SSE and runtime protections', () => {
       const { event, auth } = await create(); const signed = await session(event.id, 'Alice', 'secret');
       await request(`/events/${event.id}/availability`, 'PUT', { availability: '1212' }, signed.auth);
       expect(runtime.db.pragma('journal_mode', { simple: true })).toBe('wal');
-      expect(runtime.db.pragma('user_version', { simple: true })).toBe(3);
+      expect(runtime.db.pragma('user_version', { simple: true })).toBe(4);
       runtime.close(); runtime = createApp({ dataDir: dir, secret: 'persisted-key', rateLimit: false });
       const restored = await (await request(`/events/${event.id}`, 'GET', undefined, `${auth}; ${signed.auth}`)).json();
       expect(restored.viewer).toEqual({ isAdmin: true, participantId: signed.participant.id });

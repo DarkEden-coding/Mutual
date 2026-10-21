@@ -11,7 +11,7 @@ export function openDatabase(filename: string) {
   db.pragma('busy_timeout = 5000');
   db.transaction(() => {
     const version = db.pragma('user_version', { simple: true }) as number;
-    if (version > 3) throw new Error('Database schema is newer than this server');
+    if (version > 4) throw new Error('Database schema is newer than this server');
     if (version < 1) {
       db.exec(`
         CREATE TABLE events (id TEXT PRIMARY KEY COLLATE NOCASE, dto TEXT NOT NULL, admin_hash TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -46,11 +46,44 @@ export function openDatabase(filename: string) {
         PRAGMA user_version = 3;
       `);
     }
+    if (version < 4) {
+      db.exec(`
+        CREATE TABLE daily_stats (day TEXT PRIMARY KEY, active_events INTEGER, unique_people INTEGER,
+          events_created INTEGER NOT NULL DEFAULT 0, participants_joined INTEGER NOT NULL DEFAULT 0,
+          availability_saves INTEGER NOT NULL DEFAULT 0, throttled INTEGER NOT NULL DEFAULT 0);
+        INSERT INTO daily_stats (day, events_created)
+          SELECT substr(json_extract(dto, '$.createdAt'), 1, 10), count(*) FROM events
+          WHERE json_valid(dto) AND length(json_extract(dto, '$.createdAt')) >= 10 GROUP BY 1;
+        PRAGMA user_version = 4;
+      `);
+    }
   })();
   return db;
 }
 export function statements(db: Database.Database) {
   return {
+    adminEvents: db.prepare(`SELECT count(*) AS total,
+      coalesce(sum((SELECT count(*) FROM participants p WHERE p.event_id = e.id) >= 2), 0) AS active,
+      coalesce(sum(json_extract(dto, '$.createdAt') >= @since), 0) AS createdLast30Days,
+      coalesce(sum(json_extract(dto, '$.mode') = 'dates'), 0) AS dates,
+      coalesce(sum(json_extract(dto, '$.mode') = 'weekdays'), 0) AS weekdays,
+      coalesce(sum(expires_at <= @soon), 0) AS expiringWithin7Days FROM events e WHERE expires_at > @now`),
+    adminPeople: db.prepare(`SELECT count(DISTINCT p.name_key) AS uniquePeople, count(*) AS entries,
+      coalesce(sum(p.password_hash IS NOT NULL), 0) AS withPassword,
+      coalesce(sum(p.availability GLOB '*[12]*'), 0) AS responded
+      FROM participants p JOIN events e ON e.id = p.event_id WHERE e.expires_at > ?`),
+    adminTopEvents: db.prepare(`SELECT e.id, json_extract(e.dto, '$.title') AS title, count(p.id) AS participants,
+      e.updated_at AS updatedAt, e.expires_at AS expiresAt FROM events e
+      LEFT JOIN participants p ON p.event_id = e.id WHERE e.expires_at > ? GROUP BY e.id
+      ORDER BY participants DESC, e.updated_at DESC, e.id LIMIT 8`),
+    dailyStats: db.prepare('SELECT * FROM daily_stats WHERE day >= ? ORDER BY day'),
+    incrementDailyStats: db.prepare(`INSERT INTO daily_stats (day, events_created, participants_joined, availability_saves, throttled)
+      VALUES (?, ?, ?, ?, ?) ON CONFLICT(day) DO UPDATE SET events_created = events_created + excluded.events_created,
+      participants_joined = participants_joined + excluded.participants_joined,
+      availability_saves = availability_saves + excluded.availability_saves, throttled = throttled + excluded.throttled`),
+    snapshotDailyStats: db.prepare(`INSERT INTO daily_stats (day, active_events, unique_people) VALUES (?, ?, ?)
+      ON CONFLICT(day) DO UPDATE SET active_events = excluded.active_events, unique_people = excluded.unique_people`),
+    pruneDailyStats: db.prepare('DELETE FROM daily_stats WHERE day < ?'),
     event: db.prepare('SELECT * FROM events WHERE id = ?'),
     insertEvent: db.prepare('INSERT INTO events (id, dto, admin_hash, updated_at, expires_at) VALUES (?, ?, ?, ?, ?)'),
     updateEvent: db.prepare('UPDATE events SET dto = ?, updated_at = ?, expires_at = ? WHERE id = ?'),

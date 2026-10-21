@@ -122,7 +122,7 @@ Request rules for every `/api` call that is not `GET`/`HEAD`/`OPTIONS`:
 
 Rate limits (`429 rate_limited` with `Retry-After`), keyed by client IP (IPv6 by /64):
 - All `/api` requests: burst 240, refill 4/s.
-- `POST /api/events`, `/session`, `/admin`: burst 20, refill 1 per 6 s.
+- `POST /api/events`, `/session`, `/admin`, `/api/admin/login`: burst 20, refill 1 per 6 s.
 - Password checks per participant: burst 10, refill 1 per 6 min, regardless of IP.
 - Live update streams: 20 open per IP, 300 per event, 2000 total.
 Limit state is persisted in SQLite on shutdown.
@@ -181,6 +181,38 @@ interface ViewerDTO {
 | GET | `/api/events/:id/stream` | – | SSE (below) |
 
 Names: trimmed, 1–40 chars. Passwords: 0–128 chars (empty = none).
+
+### Site admin dashboard
+
+`ADMIN_TOKEN` (at least 32 characters) enables the read-only `/admin` dashboard; empty or
+unset disables every `/api/admin/*` route with `404 not_found`.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/api/admin/login` | `{ token }` (string, max 200 chars, no extra fields) | `{ ok: true }` + console cookie; `403 forbidden` if wrong |
+| POST | `/api/admin/logout` | – | `204`, clears console cookie, even without a valid session |
+| GET | `/api/admin/stats` | – | Site statistics; `401 unauthorized` without a valid console cookie |
+
+Stats contain `generatedAt`, `server` (version, Node, uptime, memory), `events` (total,
+active with >= 2 participants, createdLast30Days, byMode, expiringWithin7Days), `people`
+(unique case-insensitive names, entries, withPassword, responded, avgPerEvent), `storage`
+(databaseBytes, walBytes, freeBytes, tables, volume), `live` (streams, streamLimit,
+eventsWithViewers), `topEvents` (top 8 by participant count, with live viewers), `rateLimits`
+(throttledLastHour, passwordLockoutsLastHour, trackedClients, up to 8 lowest-token client
+buckets, excluding participant-password keys), `backups` (configured, snapshots, count,
+totalBytes, latestAt), and `history` (exactly 30 UTC days ascending, ending today; day,
+activeEvents, uniquePeople, eventsCreated, participantsJoined, availabilitySaves, throttled).
+Expired events and their participants are excluded from current counts. Missing historical
+snapshots are null and missing counters are zero. History persists in `daily_stats` and is
+retained for about 400 days. `BACKUP_DIR` optionally exposes file metadata for the newest
+20 `.sqlite` snapshots, including whether a matching `.secret` file exists; no contents are read.
+
+Login uses the per-IP auth limit plus a global limit of 10 failed attempts, refilling 10/hour;
+successful logins do not consume it. All admin API
+responses use `Cache-Control: no-store` and `X-Robots-Tag: noindex`. `mutual_console` contains
+an expiry and HMAC derived from the session secret and admin token hash; token rotation
+invalidates sessions. Flags: HttpOnly, SameSite=Strict, Path=/api/admin, Max-Age 12 hours,
+Secure according to `COOKIE_SECURE` (production by default).
 
 ### Cookies
 - Admin: `mutual_admin_<eventId>` = admin token (random 32 bytes, base64url). Stored hashed

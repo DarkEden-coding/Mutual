@@ -36,6 +36,15 @@ export function readParticipant(secret: string, eventId: string, cookie?: string
   const id = cookie.slice(0, index);
   return equal(cookie, signParticipant(secret, eventId, id)) ? id : null;
 }
+export function signConsole(secret: string, adminHash: string, expiry = Date.now() + 12 * 3_600_000): string {
+  const key = createHmac('sha256', secret).update(`console:${adminHash}`).digest();
+  return `${expiry}.${createHmac('sha256', key).update(String(expiry)).digest('base64url')}`;
+}
+export function readConsole(secret: string, adminHash: string, cookie?: string): boolean {
+  if (!cookie) return false;
+  const expiry = Number(cookie.split('.')[0]);
+  return Number.isSafeInteger(expiry) && expiry > Date.now() && equal(cookie, signConsole(secret, adminHash, expiry));
+}
 /** Rate-limit key for a client address. IPv6 clients usually control a whole /64, so they share one bucket. */
 export function clientKey(ip: string): string {
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
@@ -52,11 +61,16 @@ export class RateLimiter {
   private buckets = new Map<string, { tokens: number; updated: number }>();
   private calls = 0;
   /** Buckets touched within the last hour, for persisting across restarts. */
-  snapshot(now = Date.now()): Bucket[] {
+  snapshot(now = Date.now()): Bucket[] { return this.liveBuckets(now); }
+  liveBuckets(now = Date.now()): Bucket[] {
     return [...this.buckets].filter(([, bucket]) => now - bucket.updated < 3_600_000).map(([key, bucket]) => ({ key, ...bucket }));
   }
   restore(buckets: Bucket[]) {
     for (const { key, tokens, updated } of buckets) this.buckets.set(key, { tokens, updated });
+  }
+  peek(key: string, capacity: number, refillPerSecond: number) {
+    const bucket = this.buckets.get(key);
+    return (bucket ? Math.min(capacity, bucket.tokens + (Date.now() - bucket.updated) / 1000 * refillPerSecond) : capacity) >= 1;
   }
   take(key: string, capacity: number, refillPerSecond: number) {
     const now = Date.now();
