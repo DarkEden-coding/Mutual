@@ -5,6 +5,7 @@ services:
       - "127.0.0.1:${HOST_PORT:-8787}:8787"
     volumes:
       - mutual-data:/data
+      - ./backups:/backups:ro
     env_file:
       - path: .env
         required: false
@@ -12,6 +13,7 @@ services:
       NODE_ENV: production
       PORT: 8787
       DATA_DIR: /data
+      BACKUP_DIR: /backups
       TRUST_PROXY: ${TRUST_PROXY:-cloudflare}
       COOKIE_SECURE: ${COOKIE_SECURE:-}
     read_only: true

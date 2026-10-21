@@ -126,6 +126,15 @@ For temporary testing without HTTPS, set `COOKIE_SECURE=false` in `.env` and run
 `docker compose up -d` to recreate the app. Then open `http://localhost:8787`, or forward
 the loopback port over SSH. Remove the override before you serve it over HTTPS.
 
+## Admin dashboard
+
+Set `ADMIN_TOKEN` to at least 32 characters (generate one with `openssl rand -base64 32`),
+restart the server, and open `/admin`. Leave it empty to disable the dashboard. The dashboard
+is read-only and shows site statistics, live connections, storage, limits, backups, and 30 days
+of history. Rotating the token logs everyone out; console sessions otherwise last 12 hours.
+Compose mounts `./backups` read-only at `/backups` and sets `BACKUP_DIR` so the dashboard can
+list snapshot metadata. Outside Compose, set `BACKUP_DIR` to your backup directory.
+
 ## Updating
 
 The named volume is preserved across updates:
@@ -173,6 +182,8 @@ Copy `.env.example` to `.env` for Compose. Every variable is optional unless not
 | `PORT` | `8787` | Server port. Compose fixes it at `8787`. |
 | `DATA_DIR` | `./data` | Database and secret directory. Compose fixes it at `/data`. |
 | `SESSION_SECRET` | *(empty)* | Signs participant cookies. Empty generates one and saves it to `DATA_DIR/secret`. |
+| `ADMIN_TOKEN` | *(empty)* | Enables `/admin`; at least 32 characters. Rotation invalidates console sessions. |
+| `BACKUP_DIR` | `/backups` (Compose) | Read-only backup metadata directory; optional outside Compose. |
 | `TRUST_PROXY` | `cloudflare` (Compose) | `cloudflare` reads `CF-Connecting-IP` and falls back to the socket address. `none` uses the socket address. |
 | `PUBLIC_URL` | empty | Origin used in link-preview tags, e.g. `https://mutual.darkeden.org`. Empty derives it from the `Host` header, using `https` when cookies are Secure. |
 | `COOKIE_SECURE` | *(empty)* | `true`/`false`. Empty means `true` in production and `false` otherwise. |
