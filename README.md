@@ -1,12 +1,22 @@
 # Mutual
 
+**Find a time that works for everyone.** A free, open source When2Meet alternative with no
+sign-up, no ads, and live results.
+
+**[Try it at mutualmeet.app →](https://mutualmeet.app/)**
+
 ![Mutual demo: joining an event, painting availability, finding the best time, and switching themes](docs/demo.gif)
 
-Try it out at https://mutualmeet.app/
+Create an event, share the link, and everyone paints the times they are free (or only
+*if needed*). The group view shows a live heatmap and a ranked list of the best meeting
+times. Use the hosted version or run your own with one Docker command.
 
-A prettier, self-hosted take on When2Meet. Create an event, share a link, and everyone
-paints the times they are free (or only *if needed*). The group view shows a live
-heatmap and a ranked list of the best meeting times.
+**Contents:** [Features](#features) · [Quick start](#quick-start-local-development) ·
+[Deploy](#deploy-with-docker-compose) · [Admin dashboard](#admin-dashboard) ·
+[Backups](#backups-and-restore) · [Configuration](#configuration) ·
+[Project layout](#project-layout) · [Contributing](#contributing)
+
+## Features
 
 - **Three-state availability**: *Available*, *If needed*, or unavailable, painted by
   click-and-drag on desktop and by touch on phones.
@@ -197,10 +207,10 @@ Copy `.env.example` to `.env` for Compose. Every variable is optional unless not
 ```
 .
 ├── server/          Hono API, SQLite storage, SSE stream; serves web/dist in production
-│   ├── src/         app.ts, database.ts, model.ts, security.ts, index.ts
+│   ├── src/         app.ts, database.ts, model.ts, security.ts, preview.ts, admin.ts, index.ts
 │   └── test/        API tests (Vitest)
 ├── web/             React + Vite single-page app
-│   ├── src/pages/       Home, EventPage, KitchenSink, NotFound
+│   ├── src/pages/       Home, NewEvent, EventPage, Admin, KitchenSink, NotFound
 │   ├── src/components/  Grid, dialogs, tooltips, theme picker, and more
 │   ├── src/themes/      One folder per theme (meta.ts + theme.css)
 │   └── THEMING.md       How themes map onto the shared design tokens

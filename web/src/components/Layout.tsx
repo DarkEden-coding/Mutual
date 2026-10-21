@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router';
-import { IconLogo } from './Icons';
+import { IconGitHub, IconLogo } from './Icons';
 import { ThemePicker } from './ThemePicker';
 
 export function Layout() {
@@ -15,6 +15,12 @@ export function Layout() {
             <span className="m-brand-name">Mutual</span>
           </Link>
           <div className="m-header-actions">
+            {pathname === '/' && (
+              <a className="m-button is-ghost is-small" href="https://github.com/DarkEden-coding/Mutual" target="_blank" rel="noopener noreferrer">
+                <IconGitHub />
+                <span>GitHub</span>
+              </a>
+            )}
             <ThemePicker />
           </div>
         </div>
