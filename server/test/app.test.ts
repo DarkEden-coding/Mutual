@@ -154,9 +154,21 @@ describe('admin and remapping', () => {
     const data = await res.json(); expect(data.participants.map((p: { availability: string }) => p.availability)).toEqual(['1000', '2000']);
     expect((await request(`/events/${event.id}/availability`, 'PUT', { availability: '1122' }, alice.auth)).status).toBe(200);
   });
+  it('remaps availability when the slot size changes', async () => {
+    const { event, auth } = await create({ dates: ['2026-10-14'], startMinute: 540, endMinute: 660, slotMinutes: 30 });
+    const alice = await session(event.id);
+    await request(`/events/${event.id}/availability`, 'PUT', { availability: '1120' }, alice.auth);
+    const finer = await (await request(`/events/${event.id}`, 'PATCH', { slotMinutes: 15 }, auth)).json();
+    expect(finer.event.slotMinutes).toBe(15); expect(finer.participants[0].availability).toBe('11112200');
+    const coarser = await (await request(`/events/${event.id}`, 'PATCH', { slotMinutes: 60 }, auth)).json();
+    expect(coarser.participants[0].availability).toBe('10');
+    await request(`/events/${event.id}/availability`, 'PUT', { availability: '12' }, alice.auth);
+    const wider = await (await request(`/events/${event.id}`, 'PATCH', { slotMinutes: 30, startMinute: 480 }, auth)).json();
+    expect(wider.participants[0].availability).toBe('001122');
+  });
   it('rejects immutable changes and invalid edit constraints', async () => {
     const { event, auth } = await create();
-    for (const patch of [{ mode: 'weekdays' }, { timezone: 'UTC' }, { slotMinutes: 15 }, { dates: [] }, { startMinute: 599 }, { weekdays: [0] }]) expect((await request(`/events/${event.id}`, 'PATCH', patch, auth)).status).toBe(400);
+    for (const patch of [{ mode: 'weekdays' }, { timezone: 'UTC' }, { slotMinutes: 45 }, { slotMinutes: 60, startMinute: 570 }, { dates: [] }, { startMinute: 599 }, { weekdays: [0] }]) expect((await request(`/events/${event.id}`, 'PATCH', patch, auth)).status).toBe(400);
   });
 });
 

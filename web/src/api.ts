@@ -74,6 +74,7 @@ export interface UpdateEventInput {
   weekdays?: number[];
   startMinute?: number;
   endMinute?: number;
+  slotMinutes?: SlotMinutes;
 }
 
 export interface EventSnapshot {

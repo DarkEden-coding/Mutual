@@ -35,6 +35,7 @@ export const patchSchema = z.object({
   title: eventFields.shape.title.optional(), description: eventFields.shape.description.removeDefault().optional(),
   dates: eventFields.shape.dates.removeDefault().optional(), weekdays: eventFields.shape.weekdays.removeDefault().optional(),
   startMinute: eventFields.shape.startMinute.optional(), endMinute: eventFields.shape.endMinute.optional(),
+  slotMinutes: eventFields.shape.slotMinutes.removeDefault().optional(),
 }).strict();
 export const sessionSchema = z.object({ name: z.string().trim().min(1).max(40), password: z.string().max(128).default('') }).strict();
 export const availabilitySchema = z.object({ availability: z.string().regex(/^[012]*$/) }).strict();
@@ -44,11 +45,31 @@ export const totalSlots = (event: EventInput) => daysOf(event).length * (event.e
 export function sortDays<T extends EventInput>(event: T): T {
   return { ...event, dates: [...event.dates].sort(), weekdays: [...event.weekdays].sort((a, b) => a - b) };
 }
+// Merging slots keeps the least committed answer: unavailable < if needed < available.
+const commitment: Record<string, number> = { '0': 0, '2': 1, '1': 2 };
+/**
+ * Carries answers over to the edited event by (day, time overlap). A new slot takes the value of
+ * the old slot it falls in when slots get finer, or the least committed of the old slots it spans
+ * when they get coarser. Times nobody answered for become '0'.
+ */
 export function remap(previous: EventDTO, next: EventDTO, availability: string): string {
-  const oldSlots = new Map<string, string>();
-  let index = 0;
-  for (const day of daysOf(previous)) for (let minute = previous.startMinute; minute < previous.endMinute; minute += previous.slotMinutes) oldSlots.set(`${day}:${minute}`, availability[index++]);
+  const perDay = (previous.endMinute - previous.startMinute) / previous.slotMinutes;
+  const oldDays = new Map<string | number, number>(daysOf(previous).map((day, i) => [day, i * perDay]));
   let result = '';
-  for (const day of daysOf(next)) for (let minute = next.startMinute; minute < next.endMinute; minute += next.slotMinutes) result += oldSlots.get(`${day}:${minute}`) ?? '0';
+  for (const day of daysOf(next)) {
+    const offset = oldDays.get(day);
+    for (let minute = next.startMinute; minute < next.endMinute; minute += next.slotMinutes) {
+      let merged: string | undefined;
+      if (offset !== undefined) {
+        const first = Math.max(0, Math.floor((minute - previous.startMinute) / previous.slotMinutes));
+        const last = Math.min(perDay, Math.ceil((minute + next.slotMinutes - previous.startMinute) / previous.slotMinutes));
+        for (let i = first; i < last; i++) {
+          const value = availability[offset + i] ?? '0';
+          if (merged === undefined || commitment[value] < commitment[merged]) merged = value;
+        }
+      }
+      result += merged ?? '0';
+    }
+  }
   return result;
 }

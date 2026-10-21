@@ -49,7 +49,8 @@ If you need to deviate, update this file in the same change and keep both sides 
   "Tue, Oct 14 · 2:00–4:00 PM · 7/8 available (1 if needed)". Clicking one highlights it on the grid.
 - **Live updates**: the group grid updates in real time via SSE when others save.
 - **Admin** (when admin cookie present): an "Edit event" dialog for title, description, dates /
-  weekdays, and hours. Mode, slot size, and timezone are immutable after creation. Admin can also
+  weekdays, hours, and slot size. Mode and timezone are immutable after creation. The dialog previews
+  whose answers a change would merge or clear before saving. Admin can also
   delete the event (with confirmation). Visiting `/e/:id?admin=<token>` claims admin on that device
   (sets the cookie) and strips the query string.
 
@@ -95,8 +96,10 @@ Constraints:
 - `dates`: 1–62 unique valid dates; `weekdays`: 1–7 unique ints in 0..6
 - Max participants per event: 200
 
-When the admin edits days/hours, the server **remaps** each participant's availability by
-`(dayKey, minuteOfDay)`: slots that still exist keep their value, new slots become `'0'`.
+When the admin edits days/hours/slot size, the server **remaps** each participant's availability by
+`(dayKey, time overlap)`: a new slot takes the value of the old slot it falls in (finer slots lose
+nothing), or the least committed value of the old slots it spans (`'0'` < `'2'` < `'1'`) when slots
+get coarser. Times nobody answered for become `'0'`.
 
 ---
 
@@ -160,7 +163,7 @@ interface ViewerDTO {
 | GET | `/api/slugs/:slug` | – | `{ available: boolean, valid: boolean }` |
 | POST | `/api/events` | `{ title, description?, mode, dates?, weekdays?, startMinute, endMinute, slotMinutes, timezone, slug? }` | `201 { event: EventDTO, adminToken: string }` + sets admin cookie |
 | GET | `/api/events/:id` | – | `{ event, participants: ParticipantDTO[], viewer: ViewerDTO }` |
-| PATCH | `/api/events/:id` | partial `{ title, description, dates, weekdays, startMinute, endMinute }` (admin) | `{ event, participants }` |
+| PATCH | `/api/events/:id` | partial `{ title, description, dates, weekdays, startMinute, endMinute, slotMinutes }` (admin) | `{ event, participants }` |
 | DELETE | `/api/events/:id` | – (admin) | `204` |
 | POST | `/api/events/:id/admin` | `{ token }` | `{ viewer }` + sets admin cookie; `403 forbidden` if wrong |
 | POST | `/api/events/:id/session` | `{ name, password? }` | `{ participant, viewer }` + sets participant cookie. Creates participant if name (case-insensitive, trimmed) is new; if existing with password → must match (`401 wrong_password`); if existing without password → ok. A password supplied for a new participant is stored. |

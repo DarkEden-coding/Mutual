@@ -539,6 +539,7 @@ function EventView({ event, participants, viewer, data, created, onDismissCreate
           <EditEventDialog
             open={editOpen}
             event={event}
+            participants={participants}
             onClose={() => setEditOpen(false)}
             onSaved={(ev, ps) => data.setSnapshot(ev, ps)}
             onDelete={() => setDeleteOpen(true)}
